@@ -1,14 +1,11 @@
-/* Home Assistant client shared by the Home Assistant and Audi Connect plugins.
+/* Home Assistant client for the Home Assistant Buttons plugin.
  *
  * Talks to Home Assistant over its WebSocket API (/api/websocket) with a
  * long-lived access token, the same way Itsyhome does. WebSocket rather than
  * REST because plugin pages load from file:// URLs, and Home Assistant's REST
  * API would reject them on CORS; WebSockets are not subject to CORS.
  *
- * Shared by Philly Web Team's EdgeControl plugins (edgecontrol-homeassistant and
- * edgecontrol-audi-connect). EdgeControl only lets a
- * plugin load files from inside its own bundle, so each repo carries a copy;
- * keep the copies identical.
+ * Kept with the shared plugin code so it stays in step with ec-common.js.
  * Load after ec-common.js. Exposes window.HAShared = ECShared + the client.
  */
 (function () {

@@ -1,8 +1,7 @@
 /* Shared EdgeControl plugin helpers: the standalone preview shim, icon
  * helpers, and EdgeControl theme handling (colour palette, font family).
  *
- * Shared by Philly Web Team's EdgeControl plugins (edgecontrol-homeassistant,
- * edgecontrol-audi-connect, edgecontrol-app-drawer). EdgeControl only lets a
+ * Shared by Philly Web Team's EdgeControl plugins. EdgeControl only lets a
  * plugin load files from inside its own bundle, so each repo carries a copy;
  * keep the copies identical.
  *

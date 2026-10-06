@@ -52,61 +52,6 @@ const states = new Map(
   ].map((e) => [e.entity_id, e])
 );
 
-// ---------------------------------------------------------------------------
-// A plug-in hybrid from the Audi Connect integration (audiconnect/audi_connect_ha).
-// unique_id = `${vin}_${platform}_${key}`, exactly as the integration builds it.
-// ---------------------------------------------------------------------------
-const AUDI_VIN = 'wauzzzfy1n2034567';
-const AUDI_DEVICE = 'dev_audi_q5';
-const AUDI = [
-  // [domain, key, object_id, state, attributes]
-  ['sensor', 'range', 'range', '312', { unit_of_measurement: 'mi', device_class: 'distance' }],
-  ['sensor', 'primary_engine_range', 'primary_engine_range', '290', { unit_of_measurement: 'mi' }],
-  ['sensor', 'secondary_engine_range', 'secondary_engine_range', '22', { unit_of_measurement: 'mi' }],
-  ['sensor', 'tank_level', 'tank_level', '64', { unit_of_measurement: '%' }],
-  ['sensor', 'state_of_charge', 'state_of_charge', '82', { unit_of_measurement: '%', device_class: 'battery' }],
-  ['sensor', 'mileage', 'mileage', '18240', { unit_of_measurement: 'mi', device_class: 'distance' }],
-  ['sensor', 'outdoor_temperature', 'outdoor_temperature', '58', { unit_of_measurement: '°F', device_class: 'temperature' }],
-  ['sensor', 'charging_state', 'charging_state', 'notReadyForCharging', {}],
-  ['sensor', 'charging_power', 'charging_power', '0', { unit_of_measurement: 'kW' }],
-  ['sensor', 'remaining_charging_time', 'remaining_charging_time', '0', { unit_of_measurement: 'min' }],
-  ['sensor', 'climatisation_state', 'climatisation_state', 'off', {}],
-  ['sensor', 'last_update_time', 'last_update_time', new Date(Date.now() - 12 * 60000).toISOString(), { device_class: 'timestamp' }],
-  ['binary_sensor', 'any_door_open', 'any_door_open', 'off', { device_class: 'door' }],
-  ['binary_sensor', 'any_window_open', 'any_window_open', 'off', { device_class: 'window' }],
-  ['binary_sensor', 'trunk_open', 'trunk_open', 'off', { device_class: 'opening' }],
-  ['binary_sensor', 'hood_open', 'hood_open', 'off', { device_class: 'opening' }],
-  ['binary_sensor', 'any_door_unlocked', 'any_door_unlocked', 'off', { device_class: 'lock' }],
-  ['binary_sensor', 'plug_state', 'plug_state', 'off', { device_class: 'plug' }],
-  ['binary_sensor', 'is_moving', 'is_moving', 'off', { device_class: 'moving' }],
-  ['lock', 'lock', 'door_lock', 'locked', {}],
-  ['climate', 'climatisation', 'climatisation', 'off', { hvac_modes: ['off', 'heat_cool'], temperature: 72, current_temperature: 58 }],
-  ['button', 'refresh_vehicle_data', 'refresh_vehicle_data', 'unknown', {}],
-  ['button', 'flash_lights', 'flash_lights', 'unknown', {}],
-  ['device_tracker', 'position', 'position', 'not_home', { latitude: 39.9526, longitude: -75.1652, source_type: 'gps' }],
-];
-const entityRegistry = [];
-for (const [domain, key, objectId, state, attrs] of AUDI) {
-  const entityId = `${domain}.audi_q5_${objectId}`;
-  const name = objectId.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
-  states.set(entityId, ent(entityId, state, { friendly_name: `Audi Q5 ${name}`, ...attrs }));
-  entityRegistry.push({
-    entity_id: entityId,
-    unique_id: `${AUDI_VIN}_${domain}_${key}`,
-    platform: 'audiconnect',
-    device_id: AUDI_DEVICE,
-    disabled_by: null,
-    hidden_by: null,
-  });
-}
-// Something from another integration, to prove the widget filters by platform.
-entityRegistry.push({ entity_id: 'light.office', unique_id: 'hue-1', platform: 'hue', device_id: 'dev_hue', disabled_by: null });
-const deviceRegistry = [
-  { id: AUDI_DEVICE, name: 'Audi Q5', name_by_user: null, manufacturer: 'Audi', model: 'Q5 55 TFSI e', identifiers: [['audiconnect', AUDI_VIN.toUpperCase()]] },
-  { id: 'dev_hue', name: 'Office light', manufacturer: 'Signify', model: 'Hue bulb', identifiers: [['hue', '1']] },
-];
-const audiId = (domain, objectId) => `${domain}.audi_q5_${objectId}`;
-
 const sockets = new Set();
 
 function setState(id, state, attrs = {}) {
@@ -126,27 +71,7 @@ function setState(id, state, attrs = {}) {
   }
 }
 
-function callService(domain, service, entityId, data = {}) {
-  // Audi Connect's own services target the car's device, not an entity.
-  if (domain === 'audiconnect') {
-    if (data.device_id !== AUDI_DEVICE) throw new Error('Unknown Audi device');
-    if (service === 'refresh_vehicle_data') return setState(audiId('sensor', 'last_update_time'), now());
-    if (service === 'execute_vehicle_action') {
-      if (data.action === 'start_charger') {
-        setState(audiId('binary_sensor', 'plug_state'), 'on');
-        setState(audiId('sensor', 'charging_power'), '7.2');
-        setState(audiId('sensor', 'remaining_charging_time'), '48');
-        return setState(audiId('sensor', 'charging_state'), 'charging');
-      }
-      if (data.action === 'stop_charger') {
-        setState(audiId('sensor', 'charging_power'), '0');
-        setState(audiId('sensor', 'remaining_charging_time'), '0');
-        return setState(audiId('sensor', 'charging_state'), 'readyForCharging');
-      }
-      throw new Error(`Action ${data.action} not supported by the mock`);
-    }
-    throw new Error(`Service audiconnect.${service} not supported by the mock`);
-  }
+function callService(domain, service, entityId) {
   const e = states.get(entityId);
   if (!e) throw new Error(`Entity ${entityId} not found`);
   const d = entityId.split('.')[0];
@@ -158,14 +83,7 @@ function callService(domain, service, entityId, data = {}) {
     case 'scene.turn_on':
     case 'button.press':
     case 'input_button.press':
-      if (entityId === audiId('button', 'refresh_vehicle_data')) setState(audiId('sensor', 'last_update_time'), now());
       return setState(entityId, now());
-    case 'climate.turn_on':
-      setState(audiId('sensor', 'climatisation_state'), 'heating');
-      return setState(entityId, 'heat_cool');
-    case 'climate.turn_off':
-      setState(audiId('sensor', 'climatisation_state'), 'off');
-      return setState(entityId, 'off');
     case 'script.turn_on':
       setState(entityId, 'on');
       setTimeout(() => setState(entityId, 'off'), 1500);
@@ -222,14 +140,12 @@ wss.on('connection', (ws) => {
     const reply = (success, result, error) => ws.send(JSON.stringify({ id: msg.id, type: 'result', success, result: result ?? null, ...(error ? { error } : {}) }));
     switch (msg.type) {
       case 'get_states': return reply(true, [...states.values()]);
-      case 'config/entity_registry/list': return reply(true, entityRegistry);
-      case 'config/device_registry/list': return reply(true, deviceRegistry);
       case 'subscribe_events': ws.subs.add(msg.id); return reply(true, null);
       case 'ping': return ws.send(JSON.stringify({ id: msg.id, type: 'pong' }));
       case 'call_service': {
         const target = msg.target?.entity_id || msg.service_data?.entity_id;
         try {
-          callService(msg.domain, msg.service, Array.isArray(target) ? target[0] : target, msg.service_data || {});
+          callService(msg.domain, msg.service, Array.isArray(target) ? target[0] : target);
           console.log(`call_service ${msg.domain}.${msg.service} -> ${target}`);
           return reply(true, { context: { id: 'mock' } });
         } catch (err) {

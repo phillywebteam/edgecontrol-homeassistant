@@ -14,7 +14,7 @@ Here it is on a Xeneon Edge, beside EdgeControl's built-in widgets and the [App 
 
 ![A full EdgeControl dashboard on the Xeneon Edge: CPU, memory and storage gauges, a clock, weather, the Home Assistant Buttons tile and the App Drawer](docs/dashboard.png)
 
-Sibling plugins: [Audi Connect](https://github.com/phillywebteam/edgecontrol-audi-connect) and [App Drawer](https://github.com/phillywebteam/edgecontrol-app-drawer).
+Sibling plugin: [App Drawer](https://github.com/phillywebteam/edgecontrol-app-drawer).
 
 ## Install
 
@@ -100,7 +100,7 @@ cd dev && npm install && npm start
 
 Then open http://localhost:8124/dev/preview.html (add `?view=styles` for every style). It runs a mock Home Assistant on the same port (token `dev-token`) and shows the widget at several real tile sizes. Opening `HomeAssistant.ecplugin/widget.html` directly in a browser also works with `?url=…&token=…&layout=…&set=…`.
 
-`ec-common.js`, `ha-client.js`, `base.css` and `picker.css` are shared with the sibling plugins: EdgeControl only lets a plugin load files from inside its own bundle, so each repo carries a copy. Keep them identical across the repos.
+`ec-common.js`, `base.css` and `picker.css` are shared with the sibling plugin: EdgeControl only lets a plugin load files from inside its own bundle, so each repo carries a copy. Keep them identical across the repos.
 
 ## License
 
