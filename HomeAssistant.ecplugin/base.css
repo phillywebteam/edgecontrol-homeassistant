@@ -1,0 +1,200 @@
+/* Shared base styles for Philly Web Team's EdgeControl plugins.
+ *
+ * Shared by Philly Web Team's EdgeControl plugins (edgecontrol-homeassistant,
+ * edgecontrol-audi-connect, edgecontrol-app-drawer). EdgeControl only lets a
+ * plugin load files from inside its own bundle, so each repo carries a copy;
+ * keep the copies identical.
+ *
+ * Styled after EdgeControl's own SwiftUI widgets:
+ *   - SF Rounded (or the theme's font family) in heavy weights
+ *   - "● Title" header like WidgetHeader
+ *   - cards built from the theme's Widget Opacity, Corner Radius, border and
+ *     Widget Gap, exactly like WidgetCardModifier
+ * The fallbacks after each var() only apply in the standalone browser preview.
+ */
+
+:root {
+  /* Set by ha.js from the "Button color" setting. */
+  --accent: var(--ec-accent, #00e6ff);
+  /* Set by ha.js from the theme's font family. */
+  --font: ui-rounded, -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --card: rgb(255 255 255 / var(--ec-widget-opacity, 0.05));
+  --fill: rgb(255 255 255 / 0.05);
+  --fill-strong: rgb(255 255 255 / 0.08);
+  --border: var(--ec-border, rgba(255, 255, 255, 0.12));
+  --radius: var(--ec-corner-radius, 10px);
+  --gap: var(--ec-widget-gap, 8px);
+  --pad: var(--ec-widget-gap, 8px);
+
+  --text-1: var(--ec-text-primary, rgba(255, 255, 255, 0.92));
+  --text-2: var(--ec-text-secondary, rgba(255, 255, 255, 0.62));
+  --text-3: var(--ec-text-tertiary, rgba(255, 255, 255, 0.4));
+
+  --f-title: var(--ec-font-title, 18px);
+  --f-value: var(--ec-font-value, 28px);
+  --f-label: var(--ec-font-label, 14px);
+  --f-caption: var(--ec-font-caption, 11px);
+  --f-body: var(--ec-font-body, 16px);
+  --f-micro: var(--ec-font-micro, 10px);
+
+  /* EdgeControl's accentRed / accentYellow. */
+  --danger: #ff2e2e;
+  --warn: #f5c417;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  color: var(--text-1);
+  font-family: var(--font);
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+#app {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: var(--pad);
+}
+
+/* ---------- "● Title" header (EdgeControl WidgetHeader) ---------- */
+
+#header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px 0;
+  min-height: 20px;
+}
+#header .dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+#header .title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--f-title);
+  font-weight: 800;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes pulse { 50% { opacity: 0.35; } }
+@keyframes pop { 40% { transform: scale(1.18); } }
+@keyframes shake {
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+#status-dot {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  z-index: 5;
+}
+#status-dot.connecting { background: var(--warn); animation: pulse 1.2s infinite; }
+#status-dot.error { background: var(--danger); }
+
+/* ---------- Messages (setup, errors, empty) ---------- */
+/* Drawn straight onto the widget card, like EdgeControl's own empty states. */
+
+#message {
+  position: absolute;
+  inset: var(--pad);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  padding: 4px 12px;
+}
+#message .title { font-size: var(--f-label); font-weight: 800; color: var(--text-1); }
+#message .detail { font-size: var(--f-caption); font-weight: 600; color: var(--text-3); line-height: 1.35; max-width: 520px; }
+#message .action {
+  margin-top: 4px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: var(--f-label);
+  font-weight: 800;
+  color: #fff;
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+#app.has-header #message { top: calc(var(--pad) * 2 + 22px); }
+
+/* ---------- Corner controls ---------- */
+
+#edit {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--ec-bg-1, #000) 70%, transparent);
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+#edit:hover, #edit:active { opacity: 1; }
+#edit svg { width: 12px; height: 12px; }
+/* With a header, the pencil sits in the header row instead of over a button. */
+#app.has-header #edit { top: calc(var(--pad) + 1px); right: calc(var(--pad) + 2px); background: none; }
+
+/* ---------- Paging ---------- */
+
+#pager {
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  z-index: 5;
+}
+#pager button { padding: 3px; display: grid; place-items: center; }
+#pager .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+  opacity: 0.6;
+}
+#pager .dot.active { background: var(--accent); opacity: 1; }
+
+[hidden] { display: none !important; }
+
+/* Standalone browser preview only (never active inside EdgeControl). */
+html.standalone body { background: #0b0b0f; }

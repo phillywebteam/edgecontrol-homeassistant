@@ -1,0 +1,12 @@
+{
+  "name": "edgecontrol-homeassistant-dev",
+  "private": true,
+  "type": "module",
+  "description": "Mock Home Assistant and preview page for developing the EdgeControl plugin",
+  "scripts": {
+    "start": "node mock-ha.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

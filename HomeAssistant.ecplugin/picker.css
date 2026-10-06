@@ -1,0 +1,146 @@
+/* Shared picker overlay (tabs + selectable list + reorder), used by the
+ * Home Assistant button picker and the App Drawer's manual mode.
+ * Shared by Philly Web Team's EdgeControl plugins (edgecontrol-homeassistant and
+ * edgecontrol-app-drawer). EdgeControl only lets a
+ * plugin load files from inside its own bundle, so each repo carries a copy;
+ * keep the copies identical.
+ */
+
+#picker {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  padding: var(--pad);
+  gap: 8px;
+  background: var(--ec-bg-1, #0b0b0f);
+  border-radius: var(--radius);
+}
+
+#picker header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+}
+
+#tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 1;
+  min-width: 0;
+}
+#tabs::-webkit-scrollbar { display: none; }
+
+/* Same as Now Playing's source tabs: white 5% capsule, selected = colour 30%. */
+.tab {
+  flex: none;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: var(--f-label);
+  font-weight: 800;
+  color: var(--text-3);
+  background: var(--fill);
+}
+.tab.active { color: #fff; background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.tab .count { opacity: 0.65; margin-left: 5px; font-variant-numeric: tabular-nums; }
+
+#done {
+  flex: none;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: var(--f-label);
+  font-weight: 800;
+  color: var(--ec-bg-1, #000);
+  background: var(--accent);
+}
+
+#list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  align-content: start;
+  gap: 6px;
+  padding-right: 2px;
+}
+
+#list .group {
+  grid-column: 1 / -1;
+  margin: 6px 2px 0;
+  font-size: var(--f-caption);
+  font-weight: 800;
+  color: var(--text-3);
+}
+
+#list .empty {
+  grid-column: 1 / -1;
+  padding: 18px 8px;
+  text-align: center;
+  font-size: var(--f-caption);
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 9px;
+  border-radius: calc(var(--radius) * 0.7);
+  background: var(--fill);
+  text-align: left;
+  transition: background-color 0.15s;
+}
+.row.selected { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+.row .check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-3);
+  display: grid;
+  place-items: center;
+}
+.row.selected .check { background: var(--accent); border-color: var(--accent); color: var(--ec-bg-1, #000); }
+.row .check svg { width: 10px; height: 10px; }
+
+.row .icon { flex: none; width: 18px; height: 18px; color: var(--text-3); }
+.row.selected .icon { color: var(--accent); }
+.row .icon svg { width: 100%; height: 100%; display: block; }
+
+.row .label { min-width: 0; flex: 1; }
+.row .label .n {
+  font-size: var(--f-label);
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.row .label .id {
+  font-size: var(--f-micro);
+  font-weight: 500;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row .ord { flex: none; display: flex; gap: 4px; }
+.row .ord button {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+  background: var(--fill-strong);
+}
+.row .ord button:disabled { opacity: 0.25; cursor: default; }
+.row .ord svg { width: 12px; height: 12px; }

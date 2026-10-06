@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Home Assistant Buttons</title>
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="picker.css">
+<link rel="stylesheet" href="ha.css">
+</head>
+<body>
+<div id="app">
+  <div id="header" hidden>
+    <span class="dot"></span>
+    <span class="title"></span>
+  </div>
+
+  <div id="grid"></div>
+
+  <div id="message" hidden>
+    <div class="title"></div>
+    <div class="detail"></div>
+    <button class="action" type="button" hidden></button>
+  </div>
+
+  <button id="edit" type="button" title="Choose buttons" aria-label="Choose buttons" hidden></button>
+  <div id="pager" hidden></div>
+  <div id="status-dot" hidden></div>
+
+  <div id="picker" hidden>
+    <header>
+      <div id="tabs"></div>
+      <button id="done" type="button">Done</button>
+    </header>
+    <div id="list"></div>
+  </div>
+</div>
+<script src="ec-common.js"></script>
+<script src="ha-client.js"></script>
+<script src="ha.js"></script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Home Assistant Buttons — preview</title>
+<style>
+  body {
+    margin: 0;
+    padding: 20px;
+    /* EdgeControl's "Dark" theme background */
+    background: linear-gradient(135deg, #08080d, #0d0d14 50%, #080a0f);
+    min-height: 100vh;
+    color: rgba(255, 255, 255, 0.6);
+    font: 12px ui-rounded, -apple-system, sans-serif;
+  }
+  h1 { font-size: 14px; margin: 0 0 4px; color: #fff; }
+  p { margin: 0 0 16px; }
+  .wall { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  figure { margin: 0; }
+  figcaption { margin-bottom: 6px; }
+  /* Same recipe as EdgeControl's WidgetCardModifier: white at Widget Opacity,
+     1px theme border, Corner Radius. 128×120 px per grid cell. */
+  .card { overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1); }
+  iframe { display: block; border: 0; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<h1>Home Assistant Buttons — preview</h1>
+<p>Tiles are drawn at EdgeControl's real cell size (128×120 px) against the mock Home Assistant (dev/mock-ha.mjs). Tiles that share a button set share their picks. Add ?view=styles for every style.</p>
+<div class="wall" id="wall"></div>
+<script>
+  const base = location.origin;
+  const bundle = 'HomeAssistant.ecplugin';
+  const theme = { gap: 8, radius: 10, opacity: 0.05 };
+  const views = {
+    main: [
+      { label: '6×2 · Auto · set A · title', w: 6, h: 2, q: { set: 'A', title: 'Home' } },
+      { label: '3×2 · "2 × 2" grid · set A · Orange', w: 3, h: 2, q: { set: 'A', layout: '2 × 2', color: 'Orange' } },
+      { label: '2×2 · Auto · set B', w: 2, h: 2, q: { set: 'B' } },
+      { label: '10×1 strip · Auto · set A · System font', w: 10, h: 1, q: { set: 'A', font: 'standard' } },
+      { label: '4×3 · "4 × 3" · set A · Purple · gap 4 · radius 16', w: 4, h: 3,
+        q: { set: 'A', layout: '4 × 3', color: 'Purple', title: 'Living Room' }, t: { gap: 4, radius: 16, opacity: 0.08 } },
+      { label: '3×2 · not configured', w: 3, h: 2, q: { url: '', token: '' } },
+      { label: '3×2 · wrong token', w: 3, h: 2, q: { token: 'nope' } },
+    ],
+    styles: ['Cards', 'Dividers', 'Pills', 'Minimal', 'Tinted'].map((style) => (
+      { label: `6×2 · ${style}`, w: 6, h: 2, q: { set: 'A', style, title: style } }
+    )).concat([
+      { label: '10×1 strip · Dividers', w: 10, h: 1, q: { set: 'A', style: 'Dividers' } },
+      { label: '10×1 strip · Pills', w: 10, h: 1, q: { set: 'A', style: 'Pills' } },
+    ]),
+  };
+  const view = new URLSearchParams(location.search).get('view') || 'main';
+  const tiles = views[view] || views.main;
+  const wall = document.getElementById('wall');
+  for (const t of tiles) {
+    const th = { ...theme, ...(t.t || {}) };
+    const params = new URLSearchParams({
+      url: base, token: 'dev-token', gap: th.gap, radius: th.radius, opacity: th.opacity, ...t.q,
+    });
+    const fig = document.createElement('figure');
+    fig.innerHTML = '<figcaption></figcaption><div class="card"><iframe></iframe></div>';
+    fig.querySelector('figcaption').textContent = t.label;
+    const card = fig.querySelector('.card');
+    card.style.width = t.w * 128 + 'px';
+    card.style.height = t.h * 120 + 'px';
+    card.style.borderRadius = th.radius + 'px';
+    card.style.background = `rgb(255 255 255 / ${th.opacity})`;
+    fig.querySelector('iframe').src = base + '/' + bundle + '/widget.html?' + params;
+    wall.appendChild(fig);
+  }
+</script>
+</body>
+</html>

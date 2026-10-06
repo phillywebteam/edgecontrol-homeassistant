@@ -1,0 +1,217 @@
+/* Home Assistant Buttons: widget styles. Loaded after base.css, which has
+ * the theme tokens, header, messages and status dot. */
+
+/* ---------- Button grid ---------- */
+
+#grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: var(--gap);
+  grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr));
+}
+
+/* .btn is the size container; .inner is what the container queries lay out
+   (a container query can't restyle the container element itself). */
+.btn {
+  container-type: size;
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  border-radius: var(--radius);
+  background: var(--card);
+  border: 1px solid var(--border);
+  text-align: left;
+  overflow: hidden;
+  transition: background-color 0.2s, transform 0.08s, opacity 0.2s;
+}
+
+.btn .inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: clamp(6px, 9cqmin, 14px);
+}
+
+.btn:active { transform: scale(0.97); }
+
+.btn .icon {
+  flex: none;
+  width: clamp(18px, 34cqmin, 40px);
+  height: clamp(18px, 34cqmin, 40px);
+  color: var(--text-3);
+  transition: color 0.2s;
+}
+.btn .icon svg { width: 100%; height: 100%; display: block; }
+
+.btn .text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.btn .name {
+  font-size: var(--f-label);
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--text-1);
+  max-width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+.btn .state {
+  margin-top: 2px;
+  font-size: var(--f-caption);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Wide, short buttons: icon beside the text, vertically centred. */
+@container (max-height: 84px) and (min-width: 140px) {
+  .btn .inner { flex-direction: row; justify-content: flex-start; align-items: center; gap: 10px; }
+  .btn .icon { width: clamp(18px, 48cqh, 32px); height: clamp(18px, 48cqh, 32px); }
+  .btn .name { -webkit-line-clamp: 1; }
+}
+
+/* Very small buttons: icon and name only, centred. */
+@container (max-height: 62px) or (max-width: 76px) {
+  .btn .state { display: none; }
+}
+@container (max-height: 40px) or (max-width: 56px) {
+  .btn .inner { align-items: center; justify-content: center; }
+  .btn .text { display: none; }
+}
+
+/* Scenes, scripts, automations and buttons: icon always in the widget colour. */
+.btn.action .icon { color: var(--accent); }
+
+/* On / open / unlocked / playing: tinted like EdgeControl's selected pills. */
+.btn.on { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.btn.on .icon, .btn.on .state { color: var(--accent); }
+
+.btn.unavailable { opacity: 0.4; }
+
+.btn.busy { opacity: 0.6; }
+.btn.busy .icon { animation: pulse 0.9s ease-in-out infinite; }
+
+/* Feedback states are prefixed with #app so they win over every Style below. */
+.btn.done .state { color: var(--accent); }
+.btn.done .icon { animation: pop 0.35s ease-out; }
+
+#app .btn.failed { background: color-mix(in srgb, var(--danger) 18%, transparent); animation: shake 0.35s; }
+#app .btn.failed .state, #app .btn.failed .icon { color: var(--danger); }
+#app .btn.failed .name { color: var(--text-1); }
+
+#app .btn.confirm { background: color-mix(in srgb, var(--warn) 18%, transparent); }
+#app .btn.confirm .state, #app .btn.confirm .icon { color: var(--warn); }
+#app .btn.confirm .name { color: var(--text-1); }
+
+/* ---------- Styles (the "Style" setting; Cards is the default above) ---------- */
+
+/* Dividers: buttons fill the card edge to edge, split by single hairlines.
+   The widget card's own border is the outer frame. */
+#app[data-style="dividers"] {
+  padding: 0;
+  gap: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+#app[data-style="dividers"] #header {
+  padding: calc(var(--pad) + 2px) calc(var(--pad) + 6px) var(--pad);
+  border-bottom: 1px solid var(--border);
+}
+#app[data-style="dividers"] #grid { gap: 0; }
+#app[data-style="dividers"] .btn {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+#app[data-style="dividers"] .btn.col-last { border-right: 0; }
+#app[data-style="dividers"] .btn.row-last { border-bottom: 0; }
+#app[data-style="dividers"] .btn:active { transform: none; background: var(--fill-strong); }
+#app[data-style="dividers"] .btn.on { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+#app[data-style="dividers"] #message { inset: 0; }
+#app[data-style="dividers"] #edit { top: 4px; right: 4px; }
+#app[data-style="dividers"].has-header #edit { top: calc(var(--pad) + 3px); right: calc(var(--pad) + 4px); }
+
+/* Pills: capsules like EdgeControl's Now Playing source tabs. Always a single
+   line (icon + name), capped in height and centred in their grid cell. */
+#app[data-style="pills"] .btn {
+  align-self: center;
+  height: min(100%, 52px);
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill-strong);
+}
+#app[data-style="pills"] .btn .inner {
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 0 12px;
+}
+#app[data-style="pills"] .btn .icon { width: clamp(16px, 50cqh, 24px); height: clamp(16px, 50cqh, 24px); }
+#app[data-style="pills"] .btn .name { -webkit-line-clamp: 1; }
+#app[data-style="pills"] .btn .state { margin-top: 0; }
+#app[data-style="pills"] .btn.on { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+#app[data-style="pills"] .btn.on .name { color: #fff; }
+
+/* Minimal: no boxes. Icons and labels sit straight on the widget card, like a
+   launcher; "on" lights the icon with a soft glow. */
+#app[data-style="minimal"] .btn {
+  border: 0;
+  background: transparent;
+}
+#app[data-style="minimal"] .btn .inner {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+#app[data-style="minimal"] .btn .text { align-items: center; }
+#app[data-style="minimal"] .btn .icon {
+  width: clamp(20px, 40cqmin, 52px);
+  height: clamp(20px, 40cqmin, 52px);
+  color: var(--text-2);
+}
+#app[data-style="minimal"] .btn.action .icon { color: var(--accent); }
+#app[data-style="minimal"] .btn:active { transform: scale(0.94); background: var(--fill); }
+#app[data-style="minimal"] .btn.on { background: transparent; }
+#app[data-style="minimal"] .btn.on .icon {
+  color: var(--accent);
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 65%, transparent));
+}
+#app[data-style="minimal"] .btn.failed,
+#app[data-style="minimal"] .btn.confirm { border-radius: var(--radius); }
+
+/* Tinted: every button washed with the button colour; "on" fills it solid,
+   like Control Center tiles. */
+#app[data-style="tinted"] .btn {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+#app[data-style="tinted"] .btn .icon { color: color-mix(in srgb, var(--accent) 80%, var(--text-1)); }
+#app[data-style="tinted"] .btn.on { background: var(--accent); border-color: var(--accent); }
+#app[data-style="tinted"] .btn.on .icon,
+#app[data-style="tinted"] .btn.on .name,
+#app[data-style="tinted"] .btn.on .state { color: var(--ec-bg-1, #08080d); }
