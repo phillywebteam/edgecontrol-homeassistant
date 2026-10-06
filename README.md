@@ -12,6 +12,10 @@ Sibling plugins: [Audi Connect](https://github.com/phillywebteam/edgecontrol-aud
 
 ## Install
 
+**Easiest:** download **HomeAssistant.ecplugin.zip** from the [latest release](https://github.com/phillywebteam/edgecontrol-homeassistant/releases/latest), then in EdgeControl open Settings → Plugins → **Install Plugin** and choose the zip.
+
+**Or from source:**
+
 Requires EdgeControl 2.5.0 or later.
 
 ```bash
