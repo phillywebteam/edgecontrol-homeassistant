@@ -2,6 +2,8 @@
 
 An [EdgeControl](https://github.com/kemalandic/edgecontrol) plugin that puts tap-to-run buttons for your Home Assistant scenes, scripts, automations and devices on the dashboard, with live state. Built for the CORSAIR Xeneon Edge, but it works on any EdgeControl display.
 
+![Home Assistant Buttons tile in the Dividers style, with six scenes and three lights](docs/screenshot.png)
+
 It's styled after EdgeControl's own widgets, not Home Assistant's, and follows your Theme settings:
 - **Font:** your font family (Rounded, System, Monospaced or Serif), sizes and font scale.
 - **Cards:** Widget Opacity, Corner Radius, border and Widget Gap, built the same way as native widget cards.
