@@ -42,6 +42,8 @@ This copies `HomeAssistant.ecplugin` into `~/Library/Application Support/EdgeCon
 
    You only need to enter these on one tile. Other Buttons tiles with the URL and token left blank use the saved connection.
 4. Tap **Choose buttons** (or the pencil in the corner). Pick from Scenes, Scripts, Automations and Devices, reorder under **Selected**, then tap **Done**.
+   - **Search** (the magnifier) finds anything by name, room or entity id. The plugin can't take the Mac's keyboard, so it brings its own on-screen keyboard; its lowest key hides it to show more results.
+   - **Rooms** groups the lists by Home Assistant area: an entity's own area, or its device's. The button appears when your Home Assistant shares its areas with the token.
 
 ## Settings
 
@@ -50,7 +52,7 @@ This copies `HomeAssistant.ecplugin` into `~/Library/Application Support/EdgeCon
 | Tile title | Optional. Shows a "● Title" header like native widgets. |
 | Style | **Cards** (default): separate cards with the theme's gap. **Dividers**: buttons fill the tile edge to edge, separated by single thin lines. **Pills**: one-line capsules like Now Playing's source tabs. **Minimal**: icons and labels straight on the card; "on" lights the icon with a glow. **Tinted**: every button washed with the button colour, filled solid when on. |
 | Button grid | **Auto** sizes buttons to fit the tile. A fixed layout like **4 × 2** is columns × rows. Extra buttons go on further pages: drag sideways or tap the dots. |
-| Button set name | Tiles with the same name share one list of buttons. Give tiles different names for different buttons. |
+| Shared button set | Blank (the default): this tile keeps its own buttons. Tiles given the same name share one list. Tiles from before 1.5 were all named "Main"; that name now means the tile's own buttons, starting from what Main had. |
 | Button color | **Theme accent** follows the accent on EdgeControl's Theme page. You can also pick one of EdgeControl's colours (Cyan, Blue, Purple, Green, Yellow, Orange, Red, Pink, White). |
 | Show device state | Shows *On · 60%*, *Locked*, *Open* and so on under each name. |
 | Tap twice to unlock or open doors | Unlocking a lock or opening a garage door, gate or door cover needs a second tap within 4 seconds. |

@@ -28,10 +28,14 @@
 
   <div id="picker" hidden>
     <header>
+      <button id="search-toggle" class="icon-button" type="button" aria-label="Search"></button>
+      <button id="search-field" type="button" hidden><span class="q"></span><span class="caret"></span></button>
       <div id="tabs"></div>
+      <button id="rooms" class="tab" type="button" hidden>Rooms</button>
       <button id="done" type="button">Done</button>
     </header>
     <div id="list"></div>
+    <div id="keyboard" hidden></div>
   </div>
 </div>
 <script src="ec-common.js"></script>

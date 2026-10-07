@@ -4,7 +4,8 @@
 //   open http://localhost:8124/dev/preview.html
 //
 // Serves the repo over HTTP and speaks just enough of Home Assistant's
-// WebSocket API (auth, get_states, subscribe_events, call_service, ping) on
+// WebSocket API (auth, get_states, subscribe_events, call_service, ping, and
+// the area, device and entity registries) on
 // ws://localhost:8124/api/websocket. The only accepted token is "dev-token".
 
 import { createServer } from 'node:http';
@@ -51,6 +52,27 @@ const states = new Map(
     ent('sensor.outdoor_temperature', '58', { friendly_name: 'Outdoor Temperature', unit_of_measurement: '°F' }),
   ].map((e) => [e.entity_id, e])
 );
+
+// Rooms, the way Home Assistant's registries describe them: an entity's area
+// is its own, or its device's.
+const areas = [
+  { area_id: 'office', name: 'Office' },
+  { area_id: 'kitchen', name: 'Kitchen' },
+  { area_id: 'living_room', name: 'Living Room' },
+  { area_id: 'bedroom', name: 'Bedroom' },
+  { area_id: 'garage', name: 'Garage' },
+];
+const devices = [
+  { id: 'dev-office-blinds', area_id: 'office', name: 'Office Blinds' },
+  { id: 'dev-tv', area_id: 'living_room', name: 'Living Room TV' },
+  { id: 'dev-garage', area_id: 'garage', name: 'Garage Door Opener' },
+];
+const entityAreas = [
+  ['light.office', 'office', null], ['light.kitchen', 'kitchen', null], ['light.living_room', 'living_room', null],
+  ['switch.coffee_maker', 'kitchen', null], ['fan.bedroom', 'bedroom', null], ['scene.movie_night', 'living_room', null],
+  ['cover.office_blinds', null, 'dev-office-blinds'], ['media_player.living_room_tv', null, 'dev-tv'],
+  ['cover.garage_door', null, 'dev-garage'],
+];
 
 const sockets = new Set();
 
@@ -140,6 +162,16 @@ wss.on('connection', (ws) => {
     const reply = (success, result, error) => ws.send(JSON.stringify({ id: msg.id, type: 'result', success, result: result ?? null, ...(error ? { error } : {}) }));
     switch (msg.type) {
       case 'get_states': return reply(true, [...states.values()]);
+      case 'config/area_registry/list': return reply(true, areas);
+      case 'config/device_registry/list': return reply(true, devices);
+      case 'config/entity_registry/list_for_display':
+        return reply(true, {
+          entity_categories: {},
+          entities: [...states.keys()].map((ei) => {
+            const [, ai, di] = entityAreas.find(([id]) => id === ei) || [];
+            return { ei, ...(ai ? { ai } : {}), ...(di ? { di } : {}) };
+          }),
+        });
       case 'subscribe_events': ws.subs.add(msg.id); return reply(true, null);
       case 'ping': return ws.send(JSON.stringify({ id: msg.id, type: 'pong' }));
       case 'call_service': {

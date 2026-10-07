@@ -4,7 +4,8 @@
  * ec-common.js (window.HAShared).
  * Settings (URL, token, grid, button set) come from EdgeControl's per-widget
  * settings. The chosen buttons are picked inside the tile and saved with
- * edgecontrol.storage under the tile's "button set" name.
+ * edgecontrol.storage: under the tile's own id, or under a "button set" name
+ * that several tiles can share.
  */
 (function () {
   'use strict';
@@ -16,7 +17,7 @@
     accessToken: '',
     title: '',
     layout: 'Auto',
-    buttonSet: 'Main',
+    buttonSet: '',
     buttonColor: 'Theme accent',
     style: 'Cards',
     showState: true,
@@ -25,6 +26,8 @@
 
   H.installPreviewShim(DEFAULTS);
   const ec = window.edgecontrol;
+  // The dev preview stands in for EdgeControl's tile id with ?tile=.
+  const PREVIEW_TILE = new URLSearchParams(location.search).get('tile') || '';
 
   // ---------------------------------------------------------------------------
   // Icons (24×24). Filled glyphs in the spirit of the SF Symbols EdgeControl's
@@ -82,6 +85,9 @@
     left: '<svg viewBox="0 0 24 24">' + line('M15 5l-7 7 7 7', 2.8) + '</svg>',
     right: '<svg viewBox="0 0 24 24">' + line('M9 5l7 7-7 7', 2.8) + '</svg>',
     remove: '<svg viewBox="0 0 24 24">' + line('M6.5 6.5l11 11M17.5 6.5l-11 11', 2.8) + '</svg>',
+    search: '<svg viewBox="0 0 24 24">' + line('M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zM15.3 15.3L20 20', 2.6) + '</svg>',
+    backspace: '<svg viewBox="0 0 24 24">' + line('M9 5h11v14H9l-6-7zM12.5 9.5l5 5M17.5 9.5l-5 5', 2.2) + '</svg>',
+    hideKeys: '<svg viewBox="0 0 24 24">' + line('M6 9l6 6 6-6', 2.6) + '</svg>',
   };
 
   // ---------------------------------------------------------------------------
@@ -199,6 +205,15 @@
   let page = 0;
   let pickerOpen = false;
   let pickerTab = 'scene';
+  // Search, typed on the tile's own keyboard: plugin views can't take the
+  // Mac's keyboard focus, and the Edge is a touchscreen anyway.
+  let searching = false;
+  let query = '';
+  let keyboardShown = true;
+  // Rooms come from Home Assistant's areas; entity_id → area name.
+  let rooms = new Map();
+  let roomsLoadedAt = 0;
+  let byRoom = false;
   const feedback = new Map(); // entity_id -> { kind: 'busy'|'done'|'failed'|'confirm', text, timer }
 
   const $ = (sel) => document.querySelector(sel);
@@ -218,6 +233,11 @@
     tabs: $('#tabs'),
     list: $('#list'),
     done: $('#done'),
+    searchToggle: $('#search-toggle'),
+    searchField: $('#search-field'),
+    searchText: $('#search-field .q'),
+    rooms: $('#rooms'),
+    keyboard: $('#keyboard'),
   };
   el.edit.innerHTML = ICONS.pencil;
 
@@ -233,6 +253,7 @@
         entities.clear();
         (states || []).forEach((s) => entities.set(s.entity_id, s));
         setStatus('connected');
+        loadRooms();
       }).catch(() => {
         // The socket will close and retry if it is really broken.
         setStatus('connected');
@@ -264,7 +285,14 @@
     c.accessToken = String(c.accessToken).trim().replace(/^bearer\s+/i, '');
     c.title = String(c.title || '').trim();
     c.layout = String(c.layout || 'Auto');
-    c.buttonSet = String(c.buttonSet || 'Main').trim() || 'Main';
+    // Before 1.5 every tile was given the set "Main", so tiles shared buttons
+    // nobody meant them to share. "Main" now means the tile's own buttons,
+    // starting from what Main had; any other name still shares.
+    const set = String(c.buttonSet || '').trim();
+    c.fromMain = set.toLowerCase() === 'main';
+    c.buttonSet = c.fromMain ? '' : set;
+    // EdgeControl passes each tile's placement id with its settings.
+    c.instanceId = String((raw && raw._instanceId) || PREVIEW_TILE || '');
     c.buttonColor = String(c.buttonColor || 'Theme accent');
     c.style = String(c.style || 'Cards').toLowerCase();
     if (!STYLES.includes(c.style)) c.style = 'cards';
@@ -280,10 +308,14 @@
 
     connections.apply(config);
 
-    const setKey = 'buttons:' + config.buttonSet.toLowerCase();
+    const setKey = selectionKeyFor(config);
     if (setKey !== selectionKey) {
+      // A tile leaving a shared set for its own keeps the buttons it had,
+      // then goes its own way.
+      const ownKey = setKey.startsWith('buttons:tile:');
+      const seed = selectionKey && ownKey ? selection.slice() : null;
       selectionKey = setKey;
-      loadSelection(setKey, false);
+      loadSelection(setKey, false, seed, ownKey && config.fromMain ? 'buttons:main' : null);
     } else if (!pickerOpen && Date.now() - lastLoad > 4000) {
       loadSelection(setKey, true);
     }
@@ -320,13 +352,32 @@
   let lastLoad = 0;
   let savePending = false;
 
+  // A tile keeps its buttons to itself unless it names a button set to share.
+  function selectionKeyFor(c) {
+    if (c.buttonSet) return 'buttons:' + c.buttonSet.toLowerCase();
+    if (c.instanceId) return 'buttons:tile:' + c.instanceId;
+    return 'buttons:main';
+  }
+
   // quiet: a background refresh that picks up changes made from another tile
   // using the same button set, without jumping back to the first page.
-  async function loadSelection(key, quiet) {
+  // seed: buttons to start a never-saved selection with, or seedKey: where to
+  // read them from.
+  async function loadSelection(key, quiet, seed, seedKey) {
     lastLoad = Date.now();
     let saved = null;
     try { saved = await ec.storage.get(key); } catch (e) { saved = null; }
+    if ((saved === null || saved === undefined) && !seed && seedKey) {
+      try { seed = await ec.storage.get(seedKey); } catch (e) { seed = null; }
+      if (!Array.isArray(seed)) seed = null;
+    }
     if (key !== selectionKey || savePending || (quiet && pickerOpen)) return;
+    if ((saved === null || saved === undefined) && seed && seed.length) {
+      selection = seed.filter((x) => typeof x === 'string' && x.includes('.'));
+      saveSelection();
+      scheduleRender();
+      return;
+    }
     const next = Array.isArray(saved) ? saved.filter((x) => typeof x === 'string' && x.includes('.')) : [];
     if (quiet && next.join('\n') === selection.join('\n')) return;
     selection = next;
@@ -655,16 +706,124 @@
   function openPicker() {
     pickerOpen = true;
     if (!selection.length) pickerTab = 'scene';
+    // Rooms change rarely; a minute old is fresh enough.
+    if (status === 'connected' && Date.now() - roomsLoadedAt > 60000) loadRooms();
     scheduleRender();
   }
 
   function closePicker() {
     pickerOpen = false;
+    searching = false;
+    query = '';
     scheduleRender();
   }
 
   el.edit.addEventListener('click', openPicker);
   el.done.addEventListener('click', closePicker);
+
+  // ---------------------------------------------------------------------------
+  // Rooms
+  // ---------------------------------------------------------------------------
+  // An entity's room is its own area, or its device's. Home Assistant versions
+  // or users that can't read the registries simply get no Rooms button.
+  async function loadRooms() {
+    roomsLoadedAt = Date.now();
+    try {
+      const [areas, devices, list] = await Promise.all([
+        client.send({ type: 'config/area_registry/list' }, 20000),
+        client.send({ type: 'config/device_registry/list' }, 20000),
+        client.send({ type: 'config/entity_registry/list_for_display' }, 20000)
+          .catch(() => client.send({ type: 'config/entity_registry/list' }, 30000)),
+      ]);
+      const areaName = new Map((areas || []).map((a) => [a.area_id, a.name]));
+      const deviceArea = new Map((devices || []).map((d) => [d.id, d.area_id]));
+      // list_for_display is compact: { entities: [{ ei, ai, di }] }.
+      const items = Array.isArray(list) ? list : (list && list.entities) || [];
+      const next = new Map();
+      for (const e of items) {
+        const id = e.entity_id || e.ei;
+        const area = e.area_id || e.ai || deviceArea.get(e.device_id || e.di);
+        const name = area && areaName.get(area);
+        if (id && name) next.set(id, name);
+      }
+      rooms = next;
+    } catch (e) {
+      rooms = new Map();
+    }
+    if (pickerOpen) scheduleRender();
+  }
+
+  (async () => {
+    try { byRoom = (await ec.storage.get('picker:byRoom')) === true; } catch (e) { byRoom = false; }
+  })();
+
+  el.rooms.addEventListener('click', () => {
+    byRoom = !byRoom;
+    Promise.resolve(ec.storage.set('picker:byRoom', byRoom)).catch(() => {});
+    el.list.scrollTop = 0;
+    scheduleRender();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Search and its keyboard
+  // ---------------------------------------------------------------------------
+  el.searchToggle.innerHTML = ICONS.search;
+  el.searchToggle.addEventListener('click', () => {
+    searching = !searching;
+    query = '';
+    keyboardShown = true;
+    el.list.scrollTop = 0;
+    scheduleRender();
+  });
+  el.searchField.addEventListener('click', () => {
+    keyboardShown = true;
+    scheduleRender();
+  });
+
+  function pressKey(key) {
+    if (key === 'back') query = query.slice(0, -1);
+    else if (key === 'clear') query = '';
+    else if (key === 'hide') keyboardShown = false;
+    else if (key === ' ') { if (query && !query.endsWith(' ')) query += ' '; }
+    else query += key;
+    el.list.scrollTop = 0;
+    scheduleRender();
+  }
+
+  // Built once: rebuilding keys on every render would drop a press mid-tap.
+  (function buildKeyboard() {
+    const key = (label, value, cls) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      if (cls) b.className = cls;
+      if (label.startsWith('<svg')) b.innerHTML = label;
+      else b.textContent = label;
+      b.addEventListener('click', () => pressKey(value));
+      return b;
+    };
+    const row = (...keys) => {
+      const r = document.createElement('div');
+      r.className = 'krow';
+      r.append(...keys);
+      return r;
+    };
+    const letters = (s) => [...s].map((c) => key(c, c));
+    el.keyboard.append(
+      row(...letters('1234567890')),
+      row(...letters('qwertyuiop')),
+      row(...letters('asdfghjkl')),
+      row(...letters('zxcvbnm'), key(ICONS.backspace, 'back', 'wide')),
+      row(key(ICONS.hideKeys, 'hide', 'wide'), key('space', ' ', 'space'), key('clear', 'clear', 'wide'))
+    );
+  })();
+
+  // ---------------------------------------------------------------------------
+  // Lists
+  // ---------------------------------------------------------------------------
+  const PICKABLE = ['scene', 'script', 'automation', ...DEVICE_DOMAINS.map((d) => d[0])];
+  const TYPE_LABEL = new Map([
+    ['scene', 'Scenes'], ['script', 'Scripts'], ['automation', 'Automations'], ...DEVICE_DOMAINS,
+  ]);
 
   function entitiesIn(domains) {
     const set = new Set(domains);
@@ -674,23 +833,68 @@
     return out;
   }
 
-  function renderPicker() {
-    // Tabs
-    const tabs = CATEGORIES.map((c) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'tab' + (c.key === pickerTab ? ' active' : '');
-      b.textContent = c.label;
-      if (c.key === 'selected') {
-        const n = document.createElement('span');
-        n.className = 'count';
-        n.textContent = String(selection.length);
-        b.appendChild(n);
-      }
-      b.addEventListener('click', () => { pickerTab = c.key; el.list.scrollTop = 0; scheduleRender(); });
-      return b;
+  // Every word must appear somewhere in the name, the room or the entity id.
+  function matching(items, text) {
+    const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return items;
+    return items.filter((it) => {
+      const hay = (it.name + ' ' + it.id + ' ' + (rooms.get(it.id) || '')).toLowerCase();
+      return words.every((w) => hay.includes(w));
     });
-    el.tabs.replaceChildren(...tabs);
+  }
+
+  // [label, items] in display order: rooms alphabetically with "No room"
+  // last, or types in the order of the tabs.
+  function groups(items, by) {
+    const map = new Map();
+    for (const it of items) {
+      const label = by === 'room' ? rooms.get(it.id) || 'No room' : TYPE_LABEL.get(domainOf(it.id)) || 'Other';
+      if (!map.has(label)) map.set(label, []);
+      map.get(label).push(it);
+    }
+    const labels = [...map.keys()];
+    if (by === 'room') {
+      labels.sort((a, b) => (a === 'No room') - (b === 'No room') || a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    } else {
+      const order = [...TYPE_LABEL.values()];
+      labels.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    }
+    return labels.map((l) => [l, map.get(l)]);
+  }
+
+  function renderPicker() {
+    const hasRooms = rooms.size > 0;
+    const grouping = byRoom && hasRooms ? 'room' : 'type';
+
+    // Header: the search field replaces the tabs while searching.
+    el.searchToggle.innerHTML = searching ? ICONS.remove : ICONS.search;
+    el.searchToggle.setAttribute('aria-label', searching ? 'Stop searching' : 'Search');
+    el.searchToggle.classList.toggle('active', searching);
+    el.searchField.hidden = !searching;
+    el.tabs.hidden = searching;
+    el.searchText.textContent = query || 'Search names and rooms';
+    el.searchField.classList.toggle('placeholder', !query);
+    el.rooms.hidden = !hasRooms;
+    el.rooms.classList.toggle('active', grouping === 'room');
+    el.keyboard.hidden = !(searching && keyboardShown);
+
+    if (!searching) {
+      const tabs = CATEGORIES.map((c) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tab' + (c.key === pickerTab ? ' active' : '');
+        b.textContent = c.label;
+        if (c.key === 'selected') {
+          const n = document.createElement('span');
+          n.className = 'count';
+          n.textContent = String(selection.length);
+          b.appendChild(n);
+        }
+        b.addEventListener('click', () => { pickerTab = c.key; el.list.scrollTop = 0; scheduleRender(); });
+        return b;
+      });
+      el.tabs.replaceChildren(...tabs);
+    }
 
     const rows = [];
     const empty = (text) => {
@@ -699,28 +903,37 @@
       d.textContent = text;
       return d;
     };
-
-    if (status !== 'connected') {
-      rows.push(empty('Connect to Home Assistant to choose buttons.'));
-    } else if (pickerTab === 'selected') {
-      if (!selection.length) rows.push(empty('Nothing selected yet. Pick buttons from the other tabs.'));
-      selection.forEach((id, i) => rows.push(selectedRow(id, i)));
-    } else if (pickerTab === 'device') {
-      DEVICE_DOMAINS.forEach(([domain, label]) => {
-        const items = entitiesIn([domain]);
-        if (!items.length) return;
+    const addGroups = (items, by) => {
+      for (const [label, members] of groups(items, by)) {
         const g = document.createElement('div');
         g.className = 'group';
         g.textContent = label;
         rows.push(g);
-        items.forEach((it) => rows.push(choiceRow(it)));
-      });
-      if (!rows.length) rows.push(empty('No devices found.'));
+        members.forEach((it) => rows.push(choiceRow(it)));
+      }
+    };
+
+    if (status !== 'connected') {
+      rows.push(empty('Connect to Home Assistant to choose buttons.'));
+    } else if (searching) {
+      const found = matching(entitiesIn(PICKABLE), query);
+      if (!query) rows.push(empty('Type a name, a room or part of an entity id.'));
+      else if (!found.length) rows.push(empty('Nothing matches “' + query.trim() + '”.'));
+      // A long list of matches is no use on a small tile; keep the DOM light.
+      else addGroups(found.slice(0, 150), grouping);
+    } else if (pickerTab === 'selected') {
+      if (!selection.length) rows.push(empty('Nothing selected yet. Pick buttons from the other tabs.'));
+      selection.forEach((id, i) => rows.push(selectedRow(id, i)));
     } else {
       const cat = CATEGORIES.find((c) => c.key === pickerTab);
       const items = entitiesIn(cat.domains);
-      if (!items.length) rows.push(empty('No ' + cat.label.toLowerCase() + ' found in Home Assistant.'));
-      items.forEach((it) => rows.push(choiceRow(it)));
+      if (!items.length) {
+        rows.push(empty(pickerTab === 'device' ? 'No devices found.' : 'No ' + cat.label.toLowerCase() + ' found in Home Assistant.'));
+      } else if (grouping === 'room' || pickerTab === 'device') {
+        addGroups(items, grouping);
+      } else {
+        items.forEach((it) => rows.push(choiceRow(it)));
+      }
     }
     el.list.replaceChildren(...rows);
   }
@@ -738,7 +951,8 @@
     n.textContent = nameOf(ent, id);
     const i = document.createElement('div');
     i.className = 'id';
-    i.textContent = id;
+    const room = rooms.get(id);
+    i.textContent = room ? room + ' · ' + id : id;
     label.append(n, i);
     return { r, icon, label };
   }

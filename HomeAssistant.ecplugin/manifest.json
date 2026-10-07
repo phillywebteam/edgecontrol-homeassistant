@@ -1,7 +1,7 @@
 {
   "id": "com.phillywebteam.homeassistant",
   "name": "Home Assistant",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "author": "Mason Miller",
   "description": "Tap-to-run buttons for Home Assistant scenes, scripts, automations and devices",
   "icon": "house.fill",
@@ -98,9 +98,9 @@
         },
         {
           "key": "buttonSet",
-          "label": "Button set name (give each tile its own)",
+          "label": "Shared button set (blank: this tile’s own buttons)",
           "type": "string",
-          "default": "Main"
+          "default": ""
         },
         {
           "key": "buttonColor",

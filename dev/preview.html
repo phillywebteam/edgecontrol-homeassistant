@@ -26,7 +26,7 @@
 </head>
 <body>
 <h1>Home Assistant Buttons — preview</h1>
-<p>Tiles are drawn at EdgeControl's real cell size (128×120 px) against the mock Home Assistant (dev/mock-ha.mjs). Tiles that share a button set share their picks. Add ?view=styles for every style.</p>
+<p>Tiles are drawn at EdgeControl's real cell size (128×120 px) against the mock Home Assistant (dev/mock-ha.mjs). Tiles that share a button set share their picks; the rest keep their own. Add ?view=styles for every style.</p>
 <div class="wall" id="wall"></div>
 <script>
   const base = location.origin;
@@ -40,6 +40,8 @@
       { label: '10×1 strip · Auto · set A · System font', w: 10, h: 1, q: { set: 'A', font: 'standard' } },
       { label: '4×3 · "4 × 3" · set A · Purple · gap 4 · radius 16', w: 4, h: 3,
         q: { set: 'A', layout: '4 × 3', color: 'Purple', title: 'Living Room' }, t: { gap: 4, radius: 16, opacity: 0.08 } },
+      { label: '4×3 · its own buttons', w: 4, h: 3, q: { title: 'Own buttons' } },
+      { label: '4×3 · its own buttons too', w: 4, h: 3, q: { title: 'Also its own' } },
       { label: '3×2 · not configured', w: 3, h: 2, q: { url: '', token: '' } },
       { label: '3×2 · wrong token', w: 3, h: 2, q: { token: 'nope' } },
     ],
@@ -55,7 +57,10 @@
   const wall = document.getElementById('wall');
   for (const t of tiles) {
     const th = { ...theme, ...(t.t || {}) };
+    // Stands in for the placement id EdgeControl gives each tile.
+    const tile = 'preview-' + view + '-' + tiles.indexOf(t);
     const params = new URLSearchParams({
+      tile,
       url: base, token: 'dev-token', gap: th.gap, radius: th.radius, opacity: th.opacity, ...t.q,
     });
     const fig = document.createElement('figure');
