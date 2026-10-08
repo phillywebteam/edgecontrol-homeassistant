@@ -290,3 +290,134 @@
 #keyboard button svg { width: 18px; height: 18px; }
 #keyboard .wide { flex: 1.6 1 0; max-width: 104px; text-transform: none; }
 #keyboard .space { flex: 5 1 0; max-width: 340px; text-transform: none; }
+
+/* ---------------------------------------------------------------------------
+ * Device controls: a long press on an adjustable button opens these over the
+ * tile, the way the picker opens.
+ * ------------------------------------------------------------------------- */
+#controls {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--pad);
+  background: var(--ec-bg-1, #0b0b0f);
+  border-radius: var(--radius);
+}
+#controls header { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+#controls header .icon { flex: none; width: 22px; height: 22px; color: var(--accent); }
+#controls header .icon svg { width: 100%; height: 100%; display: block; }
+#controls header .label { flex: 1; min-width: 0; }
+#controls header .n {
+  font-size: var(--f-label);
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#controls header .s { font-size: var(--f-caption); font-weight: 600; color: var(--text-3); }
+#controls .icon-button {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+  background: var(--fill);
+}
+#controls .icon-button svg { width: 14px; height: 14px; }
+#controls-power.on { color: var(--ec-bg-1, #000); background: var(--accent); }
+#controls-done {
+  flex: none;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: var(--f-label);
+  font-weight: 800;
+  color: var(--ec-bg-1, #000);
+  background: var(--accent);
+}
+
+#controls-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  align-content: start;
+  gap: 12px 18px;
+}
+.ctl { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ctl-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--f-caption);
+  font-weight: 800;
+  color: var(--text-3);
+}
+.ctl-value { color: #fff; font-variant-numeric: tabular-nums; }
+
+/* Level bars fill to their level; colour bars show a marker on a spectrum. */
+.track {
+  position: relative;
+  height: clamp(26px, 9vh, 40px);
+  border-radius: calc(var(--radius) * 0.7);
+  background: var(--fill-strong);
+  overflow: hidden;
+  touch-action: none;
+  cursor: pointer;
+}
+.track .fill { position: absolute; top: 0; bottom: 0; left: 0; background: var(--accent); }
+.track .thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  width: 6px;
+  margin-left: -3px;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.45);
+}
+.track:not(.spectrum) .thumb, .track.spectrum .fill, .track.unset .thumb { display: none; }
+
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatches button {
+  width: clamp(26px, 8vh, 34px);
+  height: clamp(26px, 8vh, 34px);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.18);
+}
+
+.ctl-buttons { display: flex; gap: 8px; }
+.ctl-buttons button, .stepper button {
+  flex: 1;
+  height: clamp(30px, 10vh, 42px);
+  border-radius: calc(var(--radius) * 0.7);
+  background: var(--fill-strong);
+  font-size: var(--f-label);
+  font-weight: 800;
+  color: #fff;
+}
+.stepper { display: flex; align-items: center; gap: 12px; }
+.stepper button { flex: none; width: clamp(36px, 12vh, 52px); font-size: 22px; }
+.stepper .big {
+  flex: 1;
+  text-align: center;
+  font-size: calc(var(--f-label) * 2.4);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--fill);
+  font-size: var(--f-label);
+  font-weight: 800;
+  color: var(--text-3);
+}
+.chips button.active { color: #fff; background: color-mix(in srgb, var(--accent) 30%, transparent); }

@@ -238,6 +238,13 @@
     searchText: $('#search-field .q'),
     rooms: $('#rooms'),
     keyboard: $('#keyboard'),
+    controls: $('#controls'),
+    controlsIcon: $('#controls header .icon'),
+    controlsName: $('#controls header .n'),
+    controlsState: $('#controls header .s'),
+    controlsPower: $('#controls-power'),
+    controlsDone: $('#controls-done'),
+    controlsBody: $('#controls-body'),
   };
   el.edit.innerHTML = ICONS.pencil;
 
@@ -265,6 +272,7 @@
       if (data.new_state) entities.set(data.entity_id, data.new_state);
       else entities.delete(data.entity_id);
       if (selection.includes(data.entity_id) || (pickerOpen && (added || !data.new_state))) scheduleRender();
+      if (data.entity_id === controlsId) updateControls();
     },
   });
 
@@ -471,6 +479,7 @@
   function render() {
     el.picker.hidden = !pickerOpen;
     if (pickerOpen) renderPicker();
+    el.controls.hidden = !controlsId || pickerOpen;
 
     const hasHeader = gotConfig && !!config.title;
     el.header.hidden = !hasHeader;
@@ -514,7 +523,7 @@
       el.dot.className = status === 'connecting' || status === 'loading' ? 'connecting' : 'error';
     }
 
-    el.edit.hidden = pickerOpen;
+    el.edit.hidden = pickerOpen || !!controlsId;
 
     if (!selection.length) {
       clearGrid();
@@ -681,12 +690,452 @@
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Adjusting devices
+  // ---------------------------------------------------------------------------
+  // A long press on a light, fan, blind, speaker or thermostat opens its
+  // controls over the tile. The system touch driver turns a finger held still
+  // into a mouse press after 300 ms, so the hold here counts from that.
+  const HOLD_MS = 450;
+  let controlsId = null;
+  let controls = []; // [{ el, update() }]
+
+  const supports = (ent, bit) => (((ent && ent.attributes && ent.attributes.supported_features) || 0) & bit) !== 0;
+  const COLOR_MODES = ['hs', 'xy', 'rgb', 'rgbw', 'rgbww'];
+
+  function lightModes(ent) {
+    const a = ent.attributes || {};
+    if (Array.isArray(a.supported_color_modes)) return a.supported_color_modes;
+    // Before colour modes (Home Assistant 2021.5), supported_features said it.
+    const modes = [];
+    if (supports(ent, 1)) modes.push('brightness');
+    if (supports(ent, 2)) modes.push('color_temp');
+    if (supports(ent, 16)) modes.push('hs');
+    return modes.length ? modes : ['onoff'];
+  }
+
+  // The controls an entity has, as builders; none means a long press does nothing.
+  function controlsFor(id, ent) {
+    if (!ent) return [];
+    const a = ent.attributes || {};
+    const out = [];
+    switch (domainOf(id)) {
+      case 'light': {
+        const modes = lightModes(ent);
+        if (modes.some((m) => m !== 'onoff')) out.push(() => brightnessControl(id));
+        if (modes.includes('color_temp')) out.push(() => whiteControl(id));
+        if (modes.some((m) => COLOR_MODES.includes(m))) {
+          out.push(() => hueControl(id));
+          out.push(() => swatchControl(id, modes.includes('color_temp')));
+        }
+        break;
+      }
+      case 'fan':
+        if (a.percentage !== undefined || supports(ent, 1)) out.push(() => speedControl(id));
+        break;
+      case 'cover':
+        if (a.current_position !== undefined || supports(ent, 4)) out.push(() => positionControl(id));
+        out.push(() => coverButtons(id));
+        break;
+      case 'media_player':
+        if (a.volume_level !== undefined || supports(ent, 4)) out.push(() => volumeControl(id));
+        break;
+      case 'climate':
+        if (typeof a.temperature === 'number') out.push(() => temperatureControl(id));
+        if (Array.isArray(a.hvac_modes) && a.hvac_modes.length > 1) out.push(() => modeControl(id));
+        break;
+    }
+    return out;
+  }
+
+  const canAdjust = (id) => controlsFor(id, entities.get(id)).length > 0;
+
+  function call(id, domain, service, data) {
+    return client.send({
+      type: 'call_service', domain, service, service_data: data || {}, target: { entity_id: id },
+    }).catch((err) => {
+      setFeedback(id, 'failed', 'Failed', 2500);
+      console.warn('Home Assistant call failed for ' + id + ': ' + err.message);
+    });
+  }
+
+  const attrs = (id) => ((entities.get(id) || {}).attributes) || {};
+  const isOn = (id) => (entities.get(id) || {}).state === 'on';
+
+  function control(label) {
+    const root = document.createElement('div');
+    root.className = 'ctl';
+    const head = document.createElement('div');
+    head.className = 'ctl-head';
+    const name = document.createElement('span');
+    name.textContent = label;
+    const value = document.createElement('span');
+    value.className = 'ctl-value';
+    head.append(name, value);
+    root.appendChild(head);
+    return { root, value };
+  }
+
+  // A level bar: tap to set, hold and drag, or swipe across it (the touch
+  // driver turns a swipe into scrolling). Calls go out at most four times a
+  // second while it moves, and once more where it stops. Until Home Assistant
+  // reports back, the bar shows what was asked for, not the old state.
+  function slider({ label, min, max, step, read, format, send, spectrum, tint }) {
+    const { root, value } = control(label);
+    const track = document.createElement('div');
+    track.className = 'track' + (spectrum ? ' spectrum' : '');
+    if (spectrum) track.style.background = spectrum;
+    const fill = document.createElement('div');
+    fill.className = 'fill';
+    const thumb = document.createElement('div');
+    thumb.className = 'thumb';
+    track.append(fill, thumb);
+    root.appendChild(track);
+
+    let held = null; // value shown while waiting for Home Assistant
+    let heldUntil = 0;
+    let raw = null; // unrounded, so slow swipes still add up
+    let dragging = false;
+    let timer = null;
+    let lastSent = 0;
+    const clamp = (v) => Math.min(max, Math.max(min, v));
+    const round = (v) => clamp(Math.round(v / step) * step);
+
+    function show(v) {
+      const f = v === null || v === undefined ? null : (clamp(v) - min) / (max - min);
+      track.classList.toggle('unset', f === null);
+      fill.style.width = ((f || 0) * 100) + '%';
+      thumb.style.left = ((f || 0) * 100) + '%';
+      if (tint) fill.style.background = tint() || '';
+      value.textContent = f === null ? '—' : format(round(v));
+    }
+    function set(v) {
+      if (!Number.isFinite(v)) return;
+      raw = clamp(v);
+      held = round(raw);
+      heldUntil = Date.now() + 2500;
+      show(held);
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        lastSent = Date.now();
+        send(held);
+      }, Math.max(0, 250 - (Date.now() - lastSent)));
+    }
+    const valueAt = (x) => {
+      const r = track.getBoundingClientRect();
+      return min + (max - min) * Math.min(1, Math.max(0, (x - r.left) / r.width));
+    };
+
+    track.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      try { track.setPointerCapture(e.pointerId); } catch (err) { /* not capturable */ }
+      set(valueAt(e.clientX));
+      e.preventDefault();
+    });
+    track.addEventListener('pointermove', (e) => { if (dragging) set(valueAt(e.clientX)); });
+    const end = () => { dragging = false; };
+    track.addEventListener('pointerup', end);
+    track.addEventListener('pointercancel', end);
+    // Swipe right or up for more.
+    root.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const width = track.getBoundingClientRect().width || 1;
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? -e.deltaX : e.deltaY;
+      const base = raw !== null && Date.now() < heldUntil ? raw : read();
+      set((base === null || base === undefined ? min : base) + delta / width * (max - min));
+    }, { passive: false });
+
+    return {
+      el: root,
+      update() {
+        if (dragging || Date.now() < heldUntil) return;
+        held = null;
+        raw = null;
+        show(read());
+      },
+    };
+  }
+
+  // The fill of a light's brightness bar is the light's own colour.
+  function lightTint(id) {
+    const a = attrs(id);
+    if (!isOn(id)) return '';
+    if (Array.isArray(a.hs_color) && COLOR_MODES.includes(a.color_mode)) {
+      return 'hsl(' + a.hs_color[0] + ', ' + Math.max(35, a.hs_color[1]) + '%, 58%)';
+    }
+    if (typeof a.color_temp_kelvin === 'number') return kelvinColor(a.color_temp_kelvin);
+    return '';
+  }
+
+  function kelvinColor(k) {
+    const t = Math.min(1, Math.max(0, (k - 2000) / 4500));
+    const warm = [255, 166, 77];
+    const cool = [214, 230, 255];
+    const mix = warm.map((w, i) => Math.round(w + (cool[i] - w) * t));
+    return 'rgb(' + mix.join(',') + ')';
+  }
+
+  const KELVIN_SPECTRUM = 'linear-gradient(90deg, ' + [2000, 3000, 4000, 5000, 6500].map(kelvinColor).join(', ') + ')';
+  const HUE_SPECTRUM = 'linear-gradient(90deg, ' +
+    [0, 45, 90, 135, 180, 225, 270, 315, 360].map((h) => 'hsl(' + h + ', 100%, 55%)').join(', ') + ')';
+
+  function hueName(h) {
+    const names = [[15, 'Red'], [45, 'Orange'], [70, 'Yellow'], [160, 'Green'], [200, 'Cyan'], [255, 'Blue'],
+      [290, 'Purple'], [340, 'Pink'], [361, 'Red']];
+    return (names.find(([limit]) => h < limit) || names[0])[1];
+  }
+
+  function brightnessControl(id) {
+    return slider({
+      label: 'Brightness', min: 0, max: 100, step: 1,
+      read: () => (isOn(id) ? Math.max(1, Math.round((attrs(id).brightness || 255) / 2.55)) : 0),
+      format: (v) => (v === 0 ? 'Off' : v + '%'),
+      send: (v) => (v === 0 ? call(id, 'light', 'turn_off') : call(id, 'light', 'turn_on', { brightness_pct: v })),
+      tint: () => lightTint(id),
+    });
+  }
+
+  function whiteControl(id) {
+    const a = attrs(id);
+    return slider({
+      label: 'White', min: a.min_color_temp_kelvin || 2000, max: a.max_color_temp_kelvin || 6500, step: 50,
+      spectrum: KELVIN_SPECTRUM,
+      read: () => (isOn(id) && attrs(id).color_mode === 'color_temp' ? attrs(id).color_temp_kelvin : null),
+      format: (v) => v + 'K',
+      send: (v) => call(id, 'light', 'turn_on', { color_temp_kelvin: v }),
+    });
+  }
+
+  function hueControl(id) {
+    return slider({
+      label: 'Colour', min: 0, max: 360, step: 1, spectrum: HUE_SPECTRUM,
+      read: () => {
+        const a = attrs(id);
+        return isOn(id) && COLOR_MODES.includes(a.color_mode) && Array.isArray(a.hs_color) ? a.hs_color[0] : null;
+      },
+      format: hueName,
+      send: (v) => {
+        const hs = attrs(id).hs_color;
+        // Keep a pastel a pastel; a light coming from white gets full colour.
+        const sat = Array.isArray(hs) && hs[1] > 15 && COLOR_MODES.includes(attrs(id).color_mode) ? hs[1] : 100;
+        return call(id, 'light', 'turn_on', { hs_color: [v, sat] });
+      },
+    });
+  }
+
+  function swatchControl(id, hasWhite) {
+    const { root, value } = control('Presets');
+    value.remove();
+    const row = document.createElement('div');
+    row.className = 'swatches';
+    const presets = [
+      ['Warm white', kelvinColor(2700), hasWhite ? { color_temp_kelvin: 2700 } : { hs_color: [35, 45] }],
+      ['Daylight', kelvinColor(5000), hasWhite ? { color_temp_kelvin: 5000 } : { hs_color: [0, 0] }],
+      ...[[0, 'Red'], [30, 'Orange'], [55, 'Yellow'], [120, 'Green'], [185, 'Cyan'], [225, 'Blue'], [275, 'Purple'],
+        [320, 'Pink']].map(([h, name]) => [name, 'hsl(' + h + ', 100%, 55%)', { hs_color: [h, 100] }]),
+    ];
+    for (const [name, color, data] of presets) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.title = name;
+      b.setAttribute('aria-label', name);
+      b.style.background = color;
+      b.addEventListener('click', () => call(id, 'light', 'turn_on', data));
+      row.appendChild(b);
+    }
+    root.appendChild(row);
+    return { el: root, update() {} };
+  }
+
+  function speedControl(id) {
+    return slider({
+      label: 'Speed', min: 0, max: 100, step: attrs(id).percentage_step || 1,
+      read: () => ((entities.get(id) || {}).state === 'off' ? 0 : attrs(id).percentage || 0),
+      format: (v) => (v === 0 ? 'Off' : Math.round(v) + '%'),
+      send: (v) => (v === 0 ? call(id, 'fan', 'turn_off') : call(id, 'fan', 'set_percentage', { percentage: Math.round(v) })),
+    });
+  }
+
+  function positionControl(id) {
+    return slider({
+      label: 'Position', min: 0, max: 100, step: 1,
+      read: () => attrs(id).current_position ?? null,
+      format: (v) => (v === 0 ? 'Closed' : v === 100 ? 'Open' : v + '% open'),
+      send: (v) => call(id, 'cover', 'set_cover_position', { position: v }),
+    });
+  }
+
+  function coverButtons(id) {
+    const { root, value } = control('');
+    value.remove();
+    root.firstChild.remove();
+    const row = document.createElement('div');
+    row.className = 'ctl-buttons';
+    const ent = entities.get(id);
+    const has = (bit) => !(ent && ent.attributes && ent.attributes.supported_features) || supports(ent, bit);
+    for (const [label, service, bit] of [['Open', 'open_cover', 1], ['Stop', 'stop_cover', 8], ['Close', 'close_cover', 2]]) {
+      if (!has(bit)) continue;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.addEventListener('click', () => call(id, 'cover', service));
+      row.appendChild(b);
+    }
+    root.appendChild(row);
+    return { el: root, update() {} };
+  }
+
+  function volumeControl(id) {
+    return slider({
+      label: 'Volume', min: 0, max: 100, step: 1,
+      read: () => (typeof attrs(id).volume_level === 'number' ? Math.round(attrs(id).volume_level * 100) : null),
+      format: (v) => v + '%',
+      send: (v) => call(id, 'media_player', 'volume_set', { volume_level: v / 100 }),
+    });
+  }
+
+  // − and + rather than a bar: a thermostat is set a degree at a time.
+  function temperatureControl(id) {
+    const { root, value } = control('Target');
+    value.remove();
+    const row = document.createElement('div');
+    row.className = 'stepper';
+    const big = document.createElement('span');
+    big.className = 'big';
+    let held = null;
+    let heldUntil = 0;
+    let timer = null;
+    const a0 = attrs(id);
+    const step = a0.target_temp_step || (a0.temperature % 1 ? 0.5 : 1);
+    const read = () => attrs(id).temperature;
+    const show = (v) => { big.textContent = typeof v === 'number' ? (Math.round(v * 10) / 10) + '°' : '—'; };
+    const nudge = (dir) => {
+      const a = attrs(id);
+      const base = held !== null && Date.now() < heldUntil ? held : read();
+      if (typeof base !== 'number') return;
+      held = Math.min(a.max_temp ?? 99, Math.max(a.min_temp ?? 0, Math.round((base + dir * step) / step) * step));
+      heldUntil = Date.now() + 3000;
+      show(held);
+      clearTimeout(timer);
+      // Several quick taps become one call.
+      timer = setTimeout(() => call(id, 'climate', 'set_temperature', { temperature: held }), 600);
+    };
+    const mk = (label, dir) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.addEventListener('click', () => nudge(dir));
+      return b;
+    };
+    row.append(mk('−', -1), big, mk('+', 1));
+    root.appendChild(row);
+    return {
+      el: root,
+      update() {
+        if (Date.now() < heldUntil) return;
+        held = null;
+        show(read());
+      },
+    };
+  }
+
+  function modeControl(id) {
+    const { root, value } = control('Mode');
+    value.remove();
+    const row = document.createElement('div');
+    row.className = 'chips';
+    const buttons = (attrs(id).hvac_modes || []).map((mode) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = cap(mode.replace(/_/g, ' '));
+      b.dataset.mode = mode;
+      b.addEventListener('click', () => call(id, 'climate', 'set_hvac_mode', { hvac_mode: mode }));
+      row.appendChild(b);
+      return b;
+    });
+    root.appendChild(row);
+    return {
+      el: root,
+      update() {
+        const state = (entities.get(id) || {}).state;
+        buttons.forEach((b) => b.classList.toggle('active', b.dataset.mode === state));
+      },
+    };
+  }
+
+  function openControls(id) {
+    const builders = controlsFor(id, entities.get(id));
+    if (!builders.length) return false;
+    controlsId = id;
+    controls = builders.map((build) => build());
+    el.controlsBody.replaceChildren(...controls.map((c) => c.el));
+    updateControls();
+    scheduleRender();
+    return true;
+  }
+
+  function closeControls() {
+    controlsId = null;
+    controls = [];
+    el.controlsBody.replaceChildren();
+    scheduleRender();
+  }
+
+  function updateControls() {
+    if (!controlsId) return;
+    const id = controlsId;
+    const ent = entities.get(id);
+    if (!ent) return closeControls();
+    el.controlsIcon.innerHTML = iconFor(id, ent);
+    el.controlsName.textContent = nameOf(ent, id);
+    el.controlsState.textContent = stateText(id, ent);
+    // Covers have their own buttons, and a media player's tap is play/pause.
+    const powered = !['cover', 'media_player'].includes(domainOf(id));
+    el.controlsPower.hidden = !powered;
+    el.controlsPower.classList.toggle('on', ON_STATES.has(ent.state));
+    controls.forEach((c) => c.update());
+  }
+
+  el.controlsPower.innerHTML = ICONS.toggle;
+  el.controlsPower.addEventListener('click', () => { if (controlsId) pressButton(controlsId); });
+  el.controlsDone.addEventListener('click', closeControls);
+
   // Horizontal drag across the grid flips pages (works with a mouse, and with
   // the system touch driver, which turns finger drags into mouse drags).
   let dragStart = null;
   let suppressClick = false;
-  el.grid.addEventListener('pointerdown', (e) => { dragStart = { x: e.clientX, y: e.clientY }; });
+  let holdTimer = null;
+  let holdFrom = null;
+  let held = false;
+  el.grid.addEventListener('pointerdown', (e) => {
+    dragStart = { x: e.clientX, y: e.clientY };
+    clearTimeout(holdTimer);
+    held = false;
+    const button = e.target.closest('.btn');
+    if (!button || !canAdjust(button.dataset.id)) return;
+    holdFrom = { x: e.clientX, y: e.clientY };
+    holdTimer = setTimeout(() => {
+      holdTimer = null;
+      if (openControls(button.dataset.id)) held = true;
+    }, HOLD_MS);
+  });
+  el.grid.addEventListener('pointermove', (e) => {
+    if (holdTimer && Math.hypot(e.clientX - holdFrom.x, e.clientY - holdFrom.y) > 12) {
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    }
+  });
   window.addEventListener('pointerup', (e) => {
+    clearTimeout(holdTimer);
+    holdTimer = null;
+    // The release after a long press is not a tap.
+    if (held) {
+      held = false;
+      dragStart = null;
+      suppressClick = true;
+      setTimeout(() => { suppressClick = false; }, 0);
+      return;
+    }
     if (!dragStart) return;
     const dx = e.clientX - dragStart.x;
     const dy = e.clientY - dragStart.y;
@@ -704,6 +1153,7 @@
   // Picker
   // ---------------------------------------------------------------------------
   function openPicker() {
+    if (controlsId) closeControls();
     pickerOpen = true;
     if (!selection.length) pickerTab = 'scene';
     // Rooms change rarely; a minute old is fresh enough.

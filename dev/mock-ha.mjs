@@ -37,18 +37,31 @@ const states = new Map(
     ent('script.bedtime', 'off', { friendly_name: 'Bedtime' }),
     ent('automation.porch_lights_at_sunset', 'on', { friendly_name: 'Porch Lights at Sunset' }),
     ent('automation.vacation_mode', 'off', { friendly_name: 'Vacation Mode' }),
-    ent('light.office', 'on', { friendly_name: 'Office', brightness: 153 }),
-    ent('light.kitchen', 'off', { friendly_name: 'Kitchen' }),
-    ent('light.living_room', 'on', { friendly_name: 'Living Room', brightness: 255 }),
+    // Office: colour and white. Kitchen: white only. Living Room: dimmable.
+    ent('light.office', 'on', {
+      friendly_name: 'Office', brightness: 153, color_mode: 'hs', hs_color: [30, 80],
+      supported_color_modes: ['color_temp', 'hs'], min_color_temp_kelvin: 2000, max_color_temp_kelvin: 6500,
+    }),
+    ent('light.kitchen', 'off', {
+      friendly_name: 'Kitchen', supported_color_modes: ['color_temp'], min_color_temp_kelvin: 2700,
+      max_color_temp_kelvin: 6500,
+    }),
+    ent('light.living_room', 'on', { friendly_name: 'Living Room', brightness: 255, supported_color_modes: ['brightness'] }),
+    ent('light.porch', 'off', { friendly_name: 'Porch', supported_color_modes: ['onoff'] }),
     ent('switch.coffee_maker', 'off', { friendly_name: 'Coffee Maker' }),
-    ent('fan.bedroom', 'off', { friendly_name: 'Bedroom Fan' }),
+    ent('fan.bedroom', 'off', { friendly_name: 'Bedroom Fan', percentage: 0, percentage_step: 25, supported_features: 1 }),
     ent('lock.front_door', 'locked', { friendly_name: 'Front Door' }),
     ent('cover.garage_door', 'closed', { friendly_name: 'Garage Door', device_class: 'garage' }),
-    ent('cover.office_blinds', 'open', { friendly_name: 'Office Blinds', current_position: 70 }),
-    ent('media_player.living_room_tv', 'paused', { friendly_name: 'Living Room TV', media_title: 'Nature Documentary' }),
+    ent('cover.office_blinds', 'open', { friendly_name: 'Office Blinds', current_position: 70, supported_features: 15 }),
+    ent('media_player.living_room_tv', 'paused', {
+      friendly_name: 'Living Room TV', media_title: 'Nature Documentary', volume_level: 0.3, supported_features: 21429,
+    }),
     ent('input_boolean.guest_mode', 'off', { friendly_name: 'Guest Mode' }),
     ent('button.doorbell_chime', 'unknown', { friendly_name: 'Doorbell Chime' }),
-    ent('climate.thermostat', 'heat', { friendly_name: 'Thermostat', current_temperature: 69 }),
+    ent('climate.thermostat', 'heat', {
+      friendly_name: 'Thermostat', current_temperature: 69, temperature: 70, min_temp: 50, max_temp: 90,
+      target_temp_step: 1, hvac_modes: ['off', 'heat', 'cool', 'auto'], supported_features: 1,
+    }),
     ent('sensor.outdoor_temperature', '58', { friendly_name: 'Outdoor Temperature', unit_of_measurement: '°F' }),
   ].map((e) => [e.entity_id, e])
 );
@@ -93,7 +106,7 @@ function setState(id, state, attrs = {}) {
   }
 }
 
-function callService(domain, service, entityId) {
+function callService(domain, service, entityId, data = {}) {
   const e = states.get(entityId);
   if (!e) throw new Error(`Entity ${entityId} not found`);
   const d = entityId.split('.')[0];
@@ -116,6 +129,26 @@ function callService(domain, service, entityId) {
     case 'lock.lock': return setState(entityId, 'locked');
     case 'cover.toggle': return setState(entityId, e.state === 'closed' ? 'open' : 'closed');
     case 'media_player.media_play_pause': return flip('playing', 'paused');
+    case 'media_player.volume_set': return setState(entityId, e.state, { volume_level: data.volume_level });
+    case 'light.turn_on': {
+      const a = {};
+      if (data.brightness_pct !== undefined) a.brightness = Math.round(data.brightness_pct * 2.55);
+      else if (e.state !== 'on') a.brightness = 200;
+      if (data.color_temp_kelvin !== undefined) Object.assign(a, { color_mode: 'color_temp', color_temp_kelvin: data.color_temp_kelvin, hs_color: null });
+      if (data.hs_color) Object.assign(a, { color_mode: 'hs', hs_color: data.hs_color, color_temp_kelvin: null });
+      return setState(entityId, 'on', a);
+    }
+    case 'light.turn_off': return setState(entityId, 'off', { brightness: null });
+    case 'fan.set_percentage':
+      return setState(entityId, data.percentage > 0 ? 'on' : 'off', { percentage: data.percentage });
+    case 'fan.turn_off': return setState(entityId, 'off', { percentage: 0 });
+    case 'cover.set_cover_position':
+      return setState(entityId, data.position > 0 ? 'open' : 'closed', { current_position: data.position });
+    case 'cover.open_cover': return setState(entityId, 'open', { current_position: 100 });
+    case 'cover.close_cover': return setState(entityId, 'closed', { current_position: 0 });
+    case 'cover.stop_cover': return;
+    case 'climate.set_temperature': return setState(entityId, e.state, { temperature: data.temperature });
+    case 'climate.set_hvac_mode': return setState(entityId, data.hvac_mode);
     default:
       throw new Error(`Service ${domain}.${service} not supported by the mock`);
   }
@@ -177,8 +210,8 @@ wss.on('connection', (ws) => {
       case 'call_service': {
         const target = msg.target?.entity_id || msg.service_data?.entity_id;
         try {
-          callService(msg.domain, msg.service, Array.isArray(target) ? target[0] : target);
-          console.log(`call_service ${msg.domain}.${msg.service} -> ${target}`);
+          callService(msg.domain, msg.service, Array.isArray(target) ? target[0] : target, msg.service_data || {});
+          console.log(`call_service ${msg.domain}.${msg.service} -> ${target} ${JSON.stringify(msg.service_data || {})}`);
           return reply(true, { context: { id: 'mock' } });
         } catch (err) {
           return reply(false, null, { code: 'home_assistant_error', message: err.message });
