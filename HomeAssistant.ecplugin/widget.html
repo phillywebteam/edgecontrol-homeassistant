@@ -27,13 +27,16 @@
   <div id="status-dot" hidden></div>
 
   <div id="controls" hidden>
-    <header>
-      <span class="icon"></span>
-      <div class="label"><div class="n"></div><div class="s"></div></div>
-      <button id="controls-power" class="icon-button" type="button" aria-label="Turn on or off"></button>
-      <button id="controls-done" type="button">Done</button>
-    </header>
-    <div id="controls-body"></div>
+    <div class="backdrop"></div>
+    <div class="popup" role="dialog">
+      <header>
+        <span class="icon"></span>
+        <div class="label"><div class="n"></div><div class="s"></div></div>
+        <button id="controls-power" class="icon-button" type="button" aria-label="Turn on or off"></button>
+        <button id="controls-done" class="icon-button" type="button" aria-label="Close"></button>
+      </header>
+      <div id="controls-body"></div>
+    </div>
   </div>
 
   <div id="picker" hidden>

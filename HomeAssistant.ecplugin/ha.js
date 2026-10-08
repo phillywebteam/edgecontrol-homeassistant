@@ -239,6 +239,8 @@
     rooms: $('#rooms'),
     keyboard: $('#keyboard'),
     controls: $('#controls'),
+    controlsBackdrop: $('#controls .backdrop'),
+    controlsPopup: $('#controls .popup'),
     controlsIcon: $('#controls header .icon'),
     controlsName: $('#controls header .n'),
     controlsState: $('#controls header .s'),
@@ -694,8 +696,9 @@
   // Adjusting devices
   // ---------------------------------------------------------------------------
   // A long press on a light, fan, blind, speaker or thermostat opens its
-  // controls over the tile. The system touch driver turns a finger held still
-  // into a mouse press after 300 ms, so the hold here counts from that.
+  // controls in a popup beside the button, with the rest of the tile dimmed
+  // behind it. The system touch driver turns a finger held still into a
+  // mouse press after 300 ms, so the hold here counts from that.
   const HOLD_MS = 450;
   let controlsId = null;
   let controls = []; // [{ el, update() }]
@@ -1070,8 +1073,45 @@
     controls = builders.map((build) => build());
     el.controlsBody.replaceChildren(...controls.map((c) => c.el));
     updateControls();
+    el.controls.hidden = false;
+    placePopup();
     scheduleRender();
     return true;
+  }
+
+  // Next to the button that was held, on whichever side has more room, and
+  // always inside the tile, which is as far as a plugin can draw. A colour light on a short tile gets two columns rather than a
+  // scrolling one.
+  function placePopup() {
+    if (!controlsId) return;
+    const app = el.app.getBoundingClientRect();
+    const margin = 8;
+    const wide = controls.length >= 3 && app.height < 330;
+    const width = Math.min(app.width - margin * 2, wide ? 560 : 340);
+    const popup = el.controlsPopup;
+    popup.style.width = width + 'px';
+    popup.style.maxHeight = (app.height - margin * 2) + 'px';
+    popup.classList.toggle('two-columns', wide && width >= 440);
+    // Layout size: the opening animation's scale would skew a measured one.
+    const size = { width: popup.offsetWidth, height: popup.offsetHeight };
+    const button = buttonEls.get(controlsId);
+    const b = button && button.isConnected
+      ? button.getBoundingClientRect()
+      : { left: app.left + app.width / 2, right: app.left + app.width / 2, top: app.top + app.height / 2, bottom: app.top + app.height / 2 };
+    const bx = (b.left + b.right) / 2 - app.left;
+    const top = b.top - app.top;
+    const bottom = b.bottom - app.top;
+    const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi));
+    const left = clamp(bx - size.width / 2, margin, app.width - size.width - margin);
+    // Where it can't clear the button, it leans toward the side with more
+    // room and covers as little of the button as it can.
+    const below = app.height - bottom - margin;
+    const above = top - margin;
+    const y = below >= above
+      ? clamp(bottom + 6, margin, app.height - size.height - margin)
+      : clamp(top - size.height - 6, margin, app.height - size.height - margin);
+    popup.style.left = left + 'px';
+    popup.style.top = y + 'px';
   }
 
   function closeControls() {
@@ -1097,8 +1137,12 @@
   }
 
   el.controlsPower.innerHTML = ICONS.toggle;
+  el.controlsDone.innerHTML = ICONS.remove;
   el.controlsPower.addEventListener('click', () => { if (controlsId) pressButton(controlsId); });
   el.controlsDone.addEventListener('click', closeControls);
+  // A tap anywhere outside the popup closes it.
+  el.controlsBackdrop.addEventListener('click', closeControls);
+  addEventListener('resize', placePopup);
 
   // Horizontal drag across the grid flips pages (works with a mouse, and with
   // the system touch driver, which turns finger drags into mouse drags).

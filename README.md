@@ -44,7 +44,7 @@ This copies `HomeAssistant.ecplugin` into `~/Library/Application Support/EdgeCon
 4. Tap **Choose buttons** (or the pencil in the corner). Pick from Scenes, Scripts, Automations and Devices, reorder under **Selected**, then tap **Done**.
    - **Search** (the magnifier) finds anything by name, room or entity id. The plugin can't take the Mac's keyboard, so it brings its own on-screen keyboard; its lowest key hides it to show more results.
    - **Rooms** groups the lists by Home Assistant area: an entity's own area, or its device's. The button appears when your Home Assistant shares its areas with the token.
-5. **Hold** a light, fan, blind, speaker or thermostat to adjust it. A quick tap still turns it on or off.
+5. **Hold** a light, fan, blind, speaker or thermostat to adjust it in a popup beside the button; tap outside it to close it. A quick tap still turns it on or off.
    - **Lights:** brightness, white (warm to cool) and colour, whichever the light supports, plus colour presets.
    - **Fans:** speed. **Blinds and covers:** position, with Open, Stop and Close. **Speakers and TVs:** volume. **Thermostats:** target temperature and mode.
    - Tap a bar to set it, swipe across it to nudge it, or hold and drag.
