@@ -134,6 +134,42 @@
     hide: lineIcon('M6 9l6 6 6-6', 2.6),
   };
 
+  /**
+   * The keys themselves, built once into `container` (rebuilding them on
+   * every render would drop a press mid-tap). `press` gets each key's value:
+   * a character, ' ', 'back', 'clear' or 'hide'. `symbols` adds a row for
+   * typing links and paths. Rows marked k-full drop out of the compact
+   * keyboard, and k-compact keys only show in it (picker.css).
+   */
+  function buildKeyboard(container, press, options) {
+    container.classList.add('keyboard');
+    const key = (label, value, cls) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      if (cls) b.className = cls;
+      if (label.startsWith('<svg')) b.innerHTML = label;
+      else b.textContent = label;
+      b.addEventListener('click', () => press(value));
+      return b;
+    };
+    const row = (cls, ...keys) => {
+      const r = document.createElement('div');
+      r.className = 'krow' + (cls ? ' ' + cls : '');
+      r.append(...keys);
+      return r;
+    };
+    const letters = (text) => [...text].map((c) => key(c, c));
+    const rows = [row('k-full', ...letters('1234567890'))];
+    if (options && options.symbols) rows.push(row('k-symbols', ...letters('.:/-_@?=&#')));
+    rows.push(
+      row('', ...letters('qwertyuiop')),
+      row('', ...letters('asdfghjkl')),
+      row('', key(SEARCH_ICONS.hide, 'hide', 'wide k-compact'), ...letters('zxcvbnm'), key(SEARCH_ICONS.backspace, 'back', 'wide')),
+      row('k-full', key(SEARCH_ICONS.hide, 'hide', 'wide'), key('space', ' ', 'space'), key('clear', 'clear', 'wide'))
+    );
+    container.replaceChildren(...rows);
+  }
+
   function createSearch(opts) {
     const s = { active: false, query: '', keysShown: true };
     const changed = () => { if (opts.onChange) opts.onChange(); };
@@ -157,31 +193,7 @@
       else s.query += key;
       changed();
     }
-
-    // Built once: rebuilding keys on every render would drop a press mid-tap.
-    const key = (label, value, cls) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      if (cls) b.className = cls;
-      if (label.startsWith('<svg')) b.innerHTML = label;
-      else b.textContent = label;
-      b.addEventListener('click', () => press(value));
-      return b;
-    };
-    const row = (cls, ...keys) => {
-      const r = document.createElement('div');
-      r.className = 'krow' + (cls ? ' ' + cls : '');
-      r.append(...keys);
-      return r;
-    };
-    const letters = (text) => [...text].map((c) => key(c, c));
-    opts.keyboard.append(
-      row('k-full', ...letters('1234567890')),
-      row('', ...letters('qwertyuiop')),
-      row('', ...letters('asdfghjkl')),
-      row('', key(SEARCH_ICONS.hide, 'hide', 'wide k-compact'), ...letters('zxcvbnm'), key(SEARCH_ICONS.backspace, 'back', 'wide')),
-      row('k-full', key(SEARCH_ICONS.hide, 'hide', 'wide'), key('space', ' ', 'space'), key('clear', 'clear', 'wide'))
-    );
+    buildKeyboard(opts.keyboard, press);
 
     s.stop = () => {
       s.active = false;
@@ -214,7 +226,9 @@
 
   window.ECShared = {
     installPreviewShim,
+    buildKeyboard,
     createSearch,
+    SEARCH_ICONS,
     svg,
     line,
     lineIcon,

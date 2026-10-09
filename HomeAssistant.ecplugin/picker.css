@@ -191,14 +191,14 @@
 @keyframes caret-blink { 50% { opacity: 0; } }
 
 /* Keys grow with the tile but stop at a comfortable fingertip size. */
-#keyboard {
+.keyboard {
   flex: none;
   display: flex;
   flex-direction: column;
   gap: 5px;
 }
-#keyboard .krow { display: flex; gap: 5px; justify-content: center; }
-#keyboard button {
+.keyboard .krow { display: flex; gap: 5px; justify-content: center; }
+.keyboard button {
   flex: 1 1 0;
   min-width: 0;
   max-width: 64px;
@@ -212,14 +212,14 @@
   font-weight: 700;
   text-transform: uppercase;
 }
-#keyboard button:active { background: color-mix(in srgb, var(--accent) 40%, transparent); }
-#keyboard button svg { width: 18px; height: 18px; }
-#keyboard .wide { flex: 1.6 1 0; max-width: 104px; text-transform: none; }
-#keyboard .space { flex: 5 1 0; max-width: 340px; text-transform: none; }
+.keyboard button:active { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+.keyboard button svg { width: 18px; height: 18px; }
+.keyboard .wide { flex: 1.6 1 0; max-width: 104px; text-transform: none; }
+.keyboard .space { flex: 5 1 0; max-width: 340px; text-transform: none; }
 
 /* A short tile's keyboard: the letters only, with the hide key beside Z.
    Keys stay a fingertip tall however little room there is. */
-#keyboard .k-compact { display: none; }
-#keyboard.compact .k-full { display: none; }
-#keyboard.compact .k-compact { display: grid; }
-#keyboard.compact button { height: clamp(26px, 11vh, 40px); }
+.keyboard .k-compact { display: none; }
+.keyboard.compact .k-full { display: none; }
+.keyboard.compact .k-compact { display: grid; }
+.keyboard.compact button { height: clamp(26px, 11vh, 40px); }
