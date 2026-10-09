@@ -85,9 +85,6 @@
     left: '<svg viewBox="0 0 24 24">' + line('M15 5l-7 7 7 7', 2.8) + '</svg>',
     right: '<svg viewBox="0 0 24 24">' + line('M9 5l7 7-7 7', 2.8) + '</svg>',
     remove: '<svg viewBox="0 0 24 24">' + line('M6.5 6.5l11 11M17.5 6.5l-11 11', 2.8) + '</svg>',
-    search: '<svg viewBox="0 0 24 24">' + line('M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zM15.3 15.3L20 20', 2.6) + '</svg>',
-    backspace: '<svg viewBox="0 0 24 24">' + line('M9 5h11v14H9l-6-7zM12.5 9.5l5 5M17.5 9.5l-5 5', 2.2) + '</svg>',
-    hideKeys: '<svg viewBox="0 0 24 24">' + line('M6 9l6 6 6-6', 2.6) + '</svg>',
   };
 
   // ---------------------------------------------------------------------------
@@ -205,11 +202,6 @@
   let page = 0;
   let pickerOpen = false;
   let pickerTab = 'scene';
-  // Search, typed on the tile's own keyboard: plugin views can't take the
-  // Mac's keyboard focus, and the Edge is a touchscreen anyway.
-  let searching = false;
-  let query = '';
-  let keyboardShown = true;
   // Rooms come from Home Assistant's areas; entity_id → area name.
   let rooms = new Map();
   let roomsLoadedAt = 0;
@@ -235,7 +227,6 @@
     done: $('#done'),
     searchToggle: $('#search-toggle'),
     searchField: $('#search-field'),
-    searchText: $('#search-field .q'),
     rooms: $('#rooms'),
     keyboard: $('#keyboard'),
     controls: $('#controls'),
@@ -1207,8 +1198,7 @@
 
   function closePicker() {
     pickerOpen = false;
-    searching = false;
-    query = '';
+    search.stop();
     scheduleRender();
   }
 
@@ -1259,57 +1249,17 @@
   });
 
   // ---------------------------------------------------------------------------
-  // Search and its keyboard
+  // Search, typed on the tile's own keyboard (ec-common.js)
   // ---------------------------------------------------------------------------
-  el.searchToggle.innerHTML = ICONS.search;
-  el.searchToggle.addEventListener('click', () => {
-    searching = !searching;
-    query = '';
-    keyboardShown = true;
-    el.list.scrollTop = 0;
-    scheduleRender();
+  const search = H.createSearch({
+    toggle: el.searchToggle,
+    field: el.searchField,
+    keyboard: el.keyboard,
+    onChange: () => {
+      el.list.scrollTop = 0;
+      scheduleRender();
+    },
   });
-  el.searchField.addEventListener('click', () => {
-    keyboardShown = true;
-    scheduleRender();
-  });
-
-  function pressKey(key) {
-    if (key === 'back') query = query.slice(0, -1);
-    else if (key === 'clear') query = '';
-    else if (key === 'hide') keyboardShown = false;
-    else if (key === ' ') { if (query && !query.endsWith(' ')) query += ' '; }
-    else query += key;
-    el.list.scrollTop = 0;
-    scheduleRender();
-  }
-
-  // Built once: rebuilding keys on every render would drop a press mid-tap.
-  (function buildKeyboard() {
-    const key = (label, value, cls) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      if (cls) b.className = cls;
-      if (label.startsWith('<svg')) b.innerHTML = label;
-      else b.textContent = label;
-      b.addEventListener('click', () => pressKey(value));
-      return b;
-    };
-    const row = (...keys) => {
-      const r = document.createElement('div');
-      r.className = 'krow';
-      r.append(...keys);
-      return r;
-    };
-    const letters = (s) => [...s].map((c) => key(c, c));
-    el.keyboard.append(
-      row(...letters('1234567890')),
-      row(...letters('qwertyuiop')),
-      row(...letters('asdfghjkl')),
-      row(...letters('zxcvbnm'), key(ICONS.backspace, 'back', 'wide')),
-      row(key(ICONS.hideKeys, 'hide', 'wide'), key('space', ' ', 'space'), key('clear', 'clear', 'wide'))
-    );
-  })();
 
   // ---------------------------------------------------------------------------
   // Lists
@@ -1327,14 +1277,9 @@
     return out;
   }
 
-  // Every word must appear somewhere in the name, the room or the entity id.
-  function matching(items, text) {
-    const words = text.toLowerCase().split(/\s+/).filter(Boolean);
-    if (!words.length) return items;
-    return items.filter((it) => {
-      const hay = (it.name + ' ' + it.id + ' ' + (rooms.get(it.id) || '')).toLowerCase();
-      return words.every((w) => hay.includes(w));
-    });
+  // What's typed must appear in the name, the room or the entity id.
+  function matching(items) {
+    return items.filter((it) => search.matches(it.name + ' ' + it.id + ' ' + (rooms.get(it.id) || '')));
   }
 
   // [label, items] in display order: rooms alphabetically with "No room"
@@ -1360,19 +1305,14 @@
     const hasRooms = rooms.size > 0;
     const grouping = byRoom && hasRooms ? 'room' : 'type';
 
-    // Header: the search field replaces the tabs while searching.
-    el.searchToggle.innerHTML = searching ? ICONS.remove : ICONS.search;
-    el.searchToggle.setAttribute('aria-label', searching ? 'Stop searching' : 'Search');
-    el.searchToggle.classList.toggle('active', searching);
-    el.searchField.hidden = !searching;
-    el.tabs.hidden = searching;
-    el.searchText.textContent = query || 'Search names and rooms';
-    el.searchField.classList.toggle('placeholder', !query);
+    // Header: the search field replaces the tabs while searching. A short
+    // tile gets the compact keyboard so some of the list still shows.
+    search.render('Search names and rooms', el.picker.clientHeight > 0 && el.picker.clientHeight < 330);
+    el.tabs.hidden = search.active;
     el.rooms.hidden = !hasRooms;
     el.rooms.classList.toggle('active', grouping === 'room');
-    el.keyboard.hidden = !(searching && keyboardShown);
 
-    if (!searching) {
+    if (!search.active) {
       const tabs = CATEGORIES.map((c) => {
         const b = document.createElement('button');
         b.type = 'button';
@@ -1409,10 +1349,10 @@
 
     if (status !== 'connected') {
       rows.push(empty('Connect to Home Assistant to choose buttons.'));
-    } else if (searching) {
-      const found = matching(entitiesIn(PICKABLE), query);
-      if (!query) rows.push(empty('Type a name, a room or part of an entity id.'));
-      else if (!found.length) rows.push(empty('Nothing matches “' + query.trim() + '”.'));
+    } else if (search.active) {
+      const found = matching(entitiesIn(PICKABLE));
+      if (!search.query) rows.push(empty('Type a name, a room or part of an entity id.'));
+      else if (!found.length) rows.push(empty('Nothing matches “' + search.query.trim() + '”.'));
       // A long list of matches is no use on a small tile; keep the DOM light.
       else addGroups(found.slice(0, 150), grouping);
     } else if (pickerTab === 'selected') {
