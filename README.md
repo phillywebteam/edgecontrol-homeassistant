@@ -10,11 +10,9 @@ It's styled after EdgeControl's own widgets, not Home Assistant's, and follows y
 - **Accent:** Theme accent by default, or any of EdgeControl's named colours per tile.
 - **Look:** a "● Title" header, left-aligned content, filled SF Symbols-style icons, and capsule tabs.
 
-Here it is on a Xeneon Edge, beside EdgeControl's built-in widgets and the [App Drawer](https://github.com/phillywebteam/edgecontrol-app-drawer):
+Here it is on a Xeneon Edge, beside EdgeControl's built-in widgets:
 
 ![A full EdgeControl dashboard on the Xeneon Edge: CPU, memory and storage gauges, a clock, weather, the Home Assistant Buttons tile and the App Drawer](docs/dashboard.png)
-
-Sibling plugin: [App Drawer](https://github.com/phillywebteam/edgecontrol-app-drawer).
 
 ## Install
 

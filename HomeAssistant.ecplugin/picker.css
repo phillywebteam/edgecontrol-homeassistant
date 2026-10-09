@@ -1,9 +1,7 @@
 /* Shared picker overlay (tabs + selectable list + reorder), used by the
- * Home Assistant button picker and the App Drawer's manual mode.
- * Shared by Philly Web Team's EdgeControl plugins (edgecontrol-homeassistant and
- * edgecontrol-app-drawer). EdgeControl only lets a
- * plugin load files from inside its own bundle, so each repo carries a copy;
- * keep the copies identical.
+ * Home Assistant button picker. Kept as shared code for Philly Web Team's
+ * EdgeControl plugins. EdgeControl only lets a plugin load files from inside
+ * its own bundle, so each repo carries a copy; keep the copies identical.
  */
 
 #picker {
