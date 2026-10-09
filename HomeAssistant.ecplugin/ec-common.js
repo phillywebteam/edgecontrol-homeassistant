@@ -118,8 +118,117 @@
     document.documentElement.style.setProperty('--font', FONT_STACKS[family] || FONT_STACKS.rounded);
   }
 
+  // ---------------------------------------------------------------------------
+  // Search, typed on the tile's own keyboard
+  // ---------------------------------------------------------------------------
+  // Plugin views can't take the Mac's keyboard focus, and the Edge is a
+  // touchscreen anyway, so search brings a keyboard of its own. The page
+  // supplies a toggle button, a button that shows the query (tapping it
+  // brings the keys back), and an empty keyboard container, then calls
+  // render() from its own render. A short tile gets a compact keyboard: the
+  // letters only, with the hide key beside Z.
+  const SEARCH_ICONS = {
+    search: lineIcon('M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zM15.3 15.3L20 20', 2.6),
+    stop: lineIcon('M6.5 6.5l11 11M17.5 6.5l-11 11', 2.8),
+    backspace: lineIcon('M9 5h11v14H9l-6-7zM12.5 9.5l5 5M17.5 9.5l-5 5', 2.2),
+    hide: lineIcon('M6 9l6 6 6-6', 2.6),
+  };
+
+  /**
+   * The keys themselves, built once into `container` (rebuilding them on
+   * every render would drop a press mid-tap). `press` gets each key's value:
+   * a character, ' ', 'back', 'clear' or 'hide'. `symbols` adds a row for
+   * typing links and paths. Rows marked k-full drop out of the compact
+   * keyboard, and k-compact keys only show in it (picker.css).
+   */
+  function buildKeyboard(container, press, options) {
+    container.classList.add('keyboard');
+    const key = (label, value, cls) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      if (cls) b.className = cls;
+      if (label.startsWith('<svg')) b.innerHTML = label;
+      else b.textContent = label;
+      b.addEventListener('click', () => press(value));
+      return b;
+    };
+    const row = (cls, ...keys) => {
+      const r = document.createElement('div');
+      r.className = 'krow' + (cls ? ' ' + cls : '');
+      r.append(...keys);
+      return r;
+    };
+    const letters = (text) => [...text].map((c) => key(c, c));
+    const rows = [row('k-full', ...letters('1234567890'))];
+    if (options && options.symbols) rows.push(row('k-symbols', ...letters('.:/-_@?=&#')));
+    rows.push(
+      row('', ...letters('qwertyuiop')),
+      row('', ...letters('asdfghjkl')),
+      row('', key(SEARCH_ICONS.hide, 'hide', 'wide k-compact'), ...letters('zxcvbnm'), key(SEARCH_ICONS.backspace, 'back', 'wide')),
+      row('k-full', key(SEARCH_ICONS.hide, 'hide', 'wide'), key('space', ' ', 'space'), key('clear', 'clear', 'wide'))
+    );
+    container.replaceChildren(...rows);
+  }
+
+  function createSearch(opts) {
+    const s = { active: false, query: '', keysShown: true };
+    const changed = () => { if (opts.onChange) opts.onChange(); };
+
+    opts.toggle.addEventListener('click', () => {
+      s.active = !s.active;
+      s.query = '';
+      s.keysShown = true;
+      changed();
+    });
+    opts.field.addEventListener('click', () => {
+      s.keysShown = true;
+      changed();
+    });
+
+    function press(key) {
+      if (key === 'back') s.query = s.query.slice(0, -1);
+      else if (key === 'clear') s.query = '';
+      else if (key === 'hide') s.keysShown = false;
+      else if (key === ' ') { if (s.query && !s.query.endsWith(' ')) s.query += ' '; }
+      else s.query += key;
+      changed();
+    }
+    buildKeyboard(opts.keyboard, press);
+
+    s.stop = () => {
+      s.active = false;
+      s.query = '';
+    };
+
+    /** Shows the toggle, field and keyboard as they now are. */
+    s.render = (placeholder, compact) => {
+      opts.toggle.innerHTML = s.active ? SEARCH_ICONS.stop : SEARCH_ICONS.search;
+      opts.toggle.setAttribute('aria-label', s.active ? 'Stop searching' : 'Search');
+      opts.toggle.classList.toggle('active', s.active);
+      opts.field.hidden = !s.active;
+      opts.field.querySelector('.q').textContent = s.query || placeholder || 'Search';
+      opts.field.classList.toggle('placeholder', !s.query);
+      opts.keyboard.hidden = !(s.active && s.keysShown);
+      opts.keyboard.classList.toggle('compact', !!compact);
+    };
+
+    /** Every typed word appears in `text`, or the query does with the spaces
+     *  taken out, since the compact keyboard has no space bar. */
+    s.matches = (text) => {
+      const q = s.query.toLowerCase().trim();
+      if (!q) return true;
+      const hay = String(text).toLowerCase();
+      return q.split(/\s+/).every((w) => hay.includes(w)) || hay.replace(/\s+/g, '').includes(q.replace(/\s+/g, ''));
+    };
+
+    return s;
+  }
+
   window.ECShared = {
     installPreviewShim,
+    buildKeyboard,
+    createSearch,
+    SEARCH_ICONS,
     svg,
     line,
     lineIcon,

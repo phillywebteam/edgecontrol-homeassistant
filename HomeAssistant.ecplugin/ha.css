@@ -217,79 +217,10 @@
 #app[data-style="tinted"] .btn.on .state { color: var(--ec-bg-1, #08080d); }
 
 /* ---------------------------------------------------------------------------
- * Picker additions: search, its keyboard, and grouping by room. Kept here
- * rather than in the shared picker.css, which the App Drawer uses too.
+ * Picker addition: grouping by room. Search and its keyboard are in the
+ * shared picker.css.
  * ------------------------------------------------------------------------- */
-#picker .icon-button {
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  color: var(--text-2);
-  background: var(--fill);
-}
-#picker .icon-button svg { width: 14px; height: 14px; }
-#picker .icon-button.active { color: #fff; background: color-mix(in srgb, var(--accent) 30%, transparent); }
-
 #rooms.active { color: #fff; background: color-mix(in srgb, var(--accent) 30%, transparent); }
-
-#search-field {
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  gap: 1px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: var(--fill-strong);
-  font-size: var(--f-label);
-  font-weight: 700;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-}
-#search-field .q { overflow: hidden; text-overflow: ellipsis; }
-#search-field.placeholder .q { color: var(--text-3); font-weight: 600; }
-#search-field.placeholder .caret { order: -1; }
-#search-field .caret {
-  flex: none;
-  width: 2px;
-  height: 1.15em;
-  border-radius: 1px;
-  background: var(--accent);
-  animation: caret-blink 1.1s steps(1) infinite;
-}
-@keyframes caret-blink { 50% { opacity: 0; } }
-
-/* Keys grow with the tile but stop at a comfortable fingertip size. */
-#keyboard {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-#keyboard .krow { display: flex; gap: 5px; justify-content: center; }
-#keyboard button {
-  flex: 1 1 0;
-  min-width: 0;
-  max-width: 64px;
-  height: clamp(24px, 8.5vh, 40px);
-  display: grid;
-  place-items: center;
-  border-radius: calc(var(--radius) * 0.6);
-  background: var(--fill-strong);
-  color: #fff;
-  font-size: var(--f-label);
-  font-weight: 700;
-  text-transform: uppercase;
-}
-#keyboard button:active { background: color-mix(in srgb, var(--accent) 40%, transparent); }
-#keyboard button svg { width: 18px; height: 18px; }
-#keyboard .wide { flex: 1.6 1 0; max-width: 104px; text-transform: none; }
-#keyboard .space { flex: 5 1 0; max-width: 340px; text-transform: none; }
 
 /* ---------------------------------------------------------------------------
  * Device controls: a long press on an adjustable button opens these over the
